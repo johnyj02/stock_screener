@@ -1,0 +1,65 @@
+# Ablation runner config (LOO/AOI/groups/time splits/grid).
+# Ablation runner settings
+ablation:
+  base_config: backtest_config.yaml
+  output_dir: "../../../results/ablations"
+  include_baseline: true
+  save_trades: false
+  print_strategy_tables: false
+  # Ablation modes to run
+  modes:
+    - loo
+    - aoi
+    - group
+    - time_split
+    - param_grid
+  # Strategy groups for group ablations
+  groups:
+    trend:
+      - GoldenCross
+      - SupertrendReversal
+      - PullbackToEma
+    momentum:
+      - RsiOversold
+      - MacdTurnaround
+      - VptBreakout
+    pattern:
+      - BullishEngulfing
+      - VolumeSpike
+    volatility:
+      - BollingerSqueeze
+      - Nr4Nr7
+      - Nr4Nr7Intraday
+      - Nr4Nr7Daily
+    gaps:
+      - GapUpContinuation
+      - GapDownContinuation
+      - GapUpFade
+      - GapDownFade
+    bearish:
+      - BearishRsiDivergence
+      - RsiOverbought
+      - MacdBearishCross
+      - Breakdown20
+      - HeadAndShouldersReversal
+      - DoubleTopRsiDivergence
+    structure:
+      - DoubleBottomRsiDivergence
+      - TriangleBreakout
+      - FlagPennantContinuation
+      - SupportResistanceBreakRetest
+  # Time windows for time-split runs
+  time_splits:
+    - start: "2020-01-01"
+      end: "2022-12-31"
+    - start: "2023-01-01"
+      end: "2025-12-31"
+  # Grid search values
+  param_grid:
+    - scope: engine
+      key: trade_size
+      values: [3000, 6000, 9000]
+    - scope: strategy
+      strategy: DoubleBottomRsiDivergence
+      key: stop_multiplier
+      values: [1.0, 1.5, 2.0]

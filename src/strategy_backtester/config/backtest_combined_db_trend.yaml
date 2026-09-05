@@ -1,0 +1,548 @@
+# Combined backtest config: DoubleBottom + trend engine (overlap allowed per-strategy).
+backtest:
+  start_date: "2020-01-01"
+  end_date: "2025-12-31"
+  interval: "1d"
+  tickers_file: "/mnt/d/Projects/stock_screener/src/strategy_grid_search/data/sp500.csv"
+
+  # Engine sizing, risk, and execution controls
+  engine:
+    # Capital & sizing
+    initial_capital: 100000.0
+    trade_size: 3000.0
+    max_alloc_pct: 0.4
+    risk_per_trade_pct: 0.005
+    portfolio_vol_target: 0.11
+    portfolio_vol_lookback: 63
+    # Regime/hedge controls
+    regime_symbol: "SPY"
+    hedge_symbol: "MES=F"
+    allow_risk_off_entries: false
+    risk_off_size_mult: 0.5
+    exit_on_risk_off: true
+    allow_short_risk_on: false
+    # Execution & liquidity filters
+    max_new_positions_per_day: 10
+    liquidity_lookback: 20
+    min_avg_dollar_vol: 20000000
+    min_avg_volume_futures: 1000
+    # Cooldowns & stability
+    cooldown_days: 5
+    regime_stability_days: 4
+    breakeven_r: -0.1
+    breakeven_delay_bars: 1
+    regime_flip_band_pct: 0.0075
+    regime_flip_slope_pct: 0.0005
+    # Costs & slippage
+    commission_per_trade: 0.0
+    commission_pct: 0.0002
+    slippage_bps: 2.0
+    # Dust-trade guards
+    min_trade_notional: 0.0
+    min_equity_shares: 1
+    position_qty_epsilon: 0.000001
+    skip_trade_if_notional_lt_min: true
+    equity_qty_rounding: "floor_int"
+    # Performance toggles
+    use_vectorized: true
+    # Book allocator (core/convex risk budgets + throttles)
+    book_allocator:
+      total_risk_budget_pct: 0.10
+      book_index_floor: 0.05
+      core_book_name: "core"
+      convex_book_name: "convex"
+      portfolio_drawdown_throttle_pct: 0.08
+      portfolio_throttle_size_mult: 0.5
+      portfolio_throttle_disable_adds: true
+      convex_block_if_core_risk_off: true
+      books:
+        core:
+          risk_budget_pct: 0.7
+          max_per_trade_risk_pct: 0.10
+          max_concurrent_risk_pct: 0.7
+          drawdown_reduce_pct: 0.0
+          drawdown_disable_pct: 0.0
+        convex:
+          risk_budget_pct: 0.15
+          max_per_trade_risk_pct: 0.05
+          max_concurrent_risk_pct: 0.15
+          drawdown_reduce_pct: 0.30
+          drawdown_reduce_to_pct: 0.05
+          drawdown_disable_pct: 0.50
+          recovery_lookback_days: 20
+
+# Post-run charts (no impact on backtest latency)
+charts:
+  enabled: true
+  mode: post
+  tickers: traded_only
+  output_dir: charts
+  format: svg
+  style: candles
+  dpi: 200
+  figsize: [14, 8]
+  per_position: true
+  include_full: false
+  window_bars_before: 40
+  window_bars_after: 40
+  include_adds: true
+  include_partials: true
+  include_volume: true
+  include_rsi: true
+  rsi_length: 14
+  rsi_overbought: 70
+  rsi_oversold: 30
+  ema_periods: [20, 50]
+  sma_periods: [200]
+
+strategy_flags: &strategy_flags
+  # Exit toggles
+  use_stop_loss: true
+  use_fallback_stop: true
+  use_take_profit: true
+  use_exit_signal: true
+  use_time_stop: true
+  use_regime_exit: true
+  use_breakeven: true
+  # Regime overrides
+  allow_risk_off_entries: null
+  allow_short_risk_on: null
+  risk_off_size_mult: null
+  require_regime_stability: false
+  regime_stability_days: null
+  avoid_regime_flip: false
+  regime_flip_band_pct: null
+  regime_flip_slope_pct: null
+  allow_regime_bypass_large_gap: false
+  # Breakeven overrides
+  breakeven_r: null
+  breakeven_delay_bars: null
+  # Giveback exits
+  giveback_enabled: false
+  giveback_trigger_r: 2.0
+  giveback_floor_r: 1.0
+  giveback_min_days: 0
+  # Partial exits
+  partial_take_profit_enabled: false
+  partial_take_profit_r: 1.0
+  partial_take_profit_pct: 0.5
+  # Decay exits
+  decay_exit_enabled: false
+  decay_exit_days: 0
+  decay_exit_mfe_r: 0.5
+  # Loss cooldown
+  loss_cooldown_days: null
+
+# Shared confirmation gates for trend entries (update here to change globally)
+trend_gate_only: &trend_gate_only
+  - "TrendGate"
+
+trend_breakout_confirmation_all: &trend_breakout_confirmation_all
+  - "TrendGate"
+  - "AboveEmaState20"
+
+# DoubleBottom + trend strategies + confirmation-only helpers
+strategies:
+  - class: DoubleBottomRsiDivergence
+    enabled: true
+    args:
+      <<: *strategy_flags
+      book: "core"
+      sentiment: "BULLISH"
+      direction: "long"
+      stop_multiplier: 1.5
+      take_profit_multiplier: null
+      time_stop_days: null
+      use_take_profit: false
+      # Partial at MMT
+      partial_take_profit_enabled: true
+      partial_take_profit_mode: "take_profit"
+      partial_take_profit_pct: 0.3
+      # Stage A trailing
+      trailing_enabled: true
+      trailing_start_r: 1.25
+      trailing_use_mmt: true
+      trailing_use_avwap: true
+      trailing_use_ema20: true
+      trailing_method: "max"
+      trailing_ema_length: 20
+      trailing_atr_mult: 0.5
+      # Trend confirm + Stage B trailing
+      trend_confirm_enabled: true
+      trend_confirm_mode: "either"
+      trend_confirm_consecutive_closes: 2
+      trend_confirm_lookback_days: 5
+      trend_trailing_method: "ema"
+      trend_trailing_ema_length: 50
+      # Exhaustion exits (disabled after trend confirm)
+      exhaustion_enabled: true
+      exhaustion_min_signals: 2
+      exhaustion_rsi_level: 70.0
+      exhaustion_rsi_rollover_bars: 2
+      exhaustion_candle_close_loc: 0.4
+      exhaustion_resistance_lookback: 40
+      exhaustion_resistance_atr_mult: 0.4
+      exhaustion_volume_ratio: 0.9
+      exhaustion_stall_atr_mult: 0.25
+      exhaustion_require_near_or_mmt: true
+      exhaustion_disable_after_trend_confirm: true
+      # Add-on (single) after trend confirm
+      addons_enabled: true
+      max_adds: 1
+      add_size_pct_initial: 0.5
+      add_min_peak_r: 1.5
+      add_min_days_since_entry: 3
+      add_only_if_above_trail: true
+      add_requires_trend_confirm: true
+      add_requires_trend_confirm_bars: 2
+      # Confirmations (EMA reclaim + acceptance)
+      confirmation_any:
+        # - "RsiOversold"
+        - "BullishEngulfing"
+      confirmation_all:
+        - "CloseAboveEma20"
+
+  - class: PullbackToEma
+    enabled: false
+    args:
+      <<: *strategy_flags
+      book: "convex"
+      sentiment: "BULLISH"
+      direction: "long"
+      stop_multiplier: 2.0
+      take_profit_multiplier: null
+      time_stop_days: null
+      use_take_profit: false
+      use_exit_signal: false
+      use_time_stop: false
+      use_regime_exit: false
+      # Trail winners instead of hard TP
+      trailing_enabled: true
+      trailing_start_r: 0.6
+      trailing_use_mmt: false
+      trailing_use_avwap: false
+      trailing_use_ema20: true
+      trailing_method: "max"
+      trailing_ema_length: 20
+      trailing_atr_mult: 0.4
+      # Breakeven promotion at +1R
+      breakeven_r: 0.0
+      breakeven_delay_bars: 0
+      # Prevent large winner giveback after convex moves
+      giveback_enabled: true
+      giveback_trigger_r: 2.0
+      giveback_floor_r: 1.0
+      giveback_min_days: 2
+      # Minimal failure exit (avoid death-by-chop in convex book)
+      decay_exit_enabled: true
+      decay_exit_days: 5
+      decay_exit_mfe_r: 0.25
+      # Early failure exit for no-traction trades
+      early_failure_exit_enabled: true
+      early_failure_bars: 3
+      early_failure_peak_r: 0.30
+      early_failure_ema_length: 20
+      early_failure_below_ema: true
+      early_failure_below_prior_low: true
+      # Minimal gating: EMA50 state only (no regime stability/flip filters)
+      confirmation_all:
+        - "TrendGate"
+        - "AboveEmaState50"
+      # Trend pyramiding (later + fewer)
+      addons_enabled: true
+      max_adds: 2
+      add_size_pct_initial: 0.5
+      add_min_peak_r: 1.0
+      add_min_peak_r_second: 2.0
+      add_min_days_since_entry: 3
+      add_min_bars_between_adds: 7
+      add_only_if_above_trail: true
+      add_requires_trend_confirm: false
+      trend_confirm_enabled: false
+      add_requires_confirmations: true
+
+  - class: DonchianBreakout
+    enabled: false
+    args:
+      <<: *strategy_flags
+      book: "convex"
+      sentiment: "BULLISH"
+      direction: "long"
+      donchian_lookback: 55
+      atr_lookback: 14
+      min_atr_pct: 1.0
+      donchian_buffer_atr: 0.1
+      stop_mode: "atr"
+      atr_stop_mult: 2.0
+      stop_lookback: 20
+      take_profit_multiplier: null
+      time_stop_days: null
+      # Trend gate only (no volume gate)
+      confirmation_all: *trend_gate_only
+      # No-follow-through exit (breakout fails to make new highs)
+      follow_through_exit_enabled: true
+      follow_through_bars: 6
+      # Trail + add-ons for convex breakouts
+      trailing_enabled: true
+      trailing_start_r: 0.8
+      trailing_use_ema20: true
+      trailing_method: "max"
+      trailing_ema_length: 20
+      trailing_atr_mult: 0.4
+      addons_enabled: true
+      max_adds: 2
+      add_size_pct_initial: 0.5
+      add_min_peak_r: 1.0
+      add_min_peak_r_second: 2.0
+      add_min_days_since_entry: 2
+      add_min_bars_between_adds: 5
+      add_only_if_above_trail: true
+      add_requires_confirmations: true
+
+  - class: FlagPennantContinuation
+    enabled: true
+    args:
+      <<: *strategy_flags
+      book: "core"
+      sentiment: "BULLISH"
+      direction: "long"
+      stop_multiplier: 2.0
+      take_profit_multiplier: null
+      time_stop_days: null
+      require_regime_stability: true
+      avoid_regime_flip: true
+      # Trailing + fast failure exits
+      trailing_enabled: true
+      trailing_start_r: 1.0
+      trailing_use_ema20: true
+      trailing_method: "max"
+      trailing_ema_length: 20
+      trailing_atr_mult: 0.5
+      decay_exit_enabled: true
+      decay_exit_days: 7
+      decay_exit_mfe_r: 0.5
+      # Confirm trend + EMA20 state
+      confirmation_all: *trend_breakout_confirmation_all
+      # Trend pyramiding (later + fewer)
+      addons_enabled: true
+      max_adds: 1
+      add_size_pct_initial: 0.33
+      add_min_peak_r: 1.0
+      add_min_days_since_entry: 2
+      add_min_bars_between_adds: 5
+      add_only_if_above_trail: true
+      add_requires_trend_confirm: false
+      add_requires_ema_length: 20
+      add_requires_confirmations: true
+
+  - class: TriangleBreakout
+    enabled: true
+    args:
+      <<: *strategy_flags
+      book: "core"
+      sentiment: "BULLISH"
+      direction: "long"
+      stop_multiplier: 2.0
+      take_profit_multiplier: null
+      time_stop_days: null
+      require_regime_stability: true
+      avoid_regime_flip: true
+      # Trailing + fast failure exits
+      trailing_enabled: true
+      trailing_start_r: 1.0
+      trailing_use_ema20: true
+      trailing_method: "max"
+      trailing_ema_length: 20
+      trailing_atr_mult: 0.5
+      decay_exit_enabled: true
+      decay_exit_days: 7
+      decay_exit_mfe_r: 0.5
+      # Confirm trend + EMA20 state
+      confirmation_all: *trend_breakout_confirmation_all
+      # Trend pyramiding (later + fewer)
+      addons_enabled: true
+      max_adds: 1
+      add_size_pct_initial: 0.33
+      add_min_peak_r: 1.0
+      add_min_days_since_entry: 2
+      add_min_bars_between_adds: 5
+      add_only_if_above_trail: true
+      add_requires_trend_confirm: false
+      add_requires_ema_length: 20
+      add_requires_confirmations: true
+
+  - class: SupportResistanceBreakRetest
+    enabled: true
+    args:
+      <<: *strategy_flags
+      book: "core"
+      sentiment: "BULLISH"
+      direction: "long"
+      stop_multiplier: 2.0
+      take_profit_multiplier: null
+      time_stop_days: null
+      require_regime_stability: true
+      avoid_regime_flip: true
+      # Trailing + fast failure exits
+      trailing_enabled: true
+      trailing_start_r: 1.0
+      trailing_use_ema20: true
+      trailing_method: "max"
+      trailing_ema_length: 20
+      trailing_atr_mult: 0.5
+      # Confirm trend + EMA20 state
+      confirmation_all: *trend_breakout_confirmation_all
+      # Exit fast failures (rare but ugly)
+      decay_exit_enabled: true
+      decay_exit_days: 5
+      decay_exit_mfe_r: 0.4
+      # Trend pyramiding (later + fewer)
+      addons_enabled: true
+      max_adds: 0
+      add_size_pct_initial: 0.5
+      add_min_peak_r: 2.0
+      add_min_days_since_entry: 10
+      add_min_bars_between_adds: 10
+      add_only_if_above_trail: true
+      add_requires_trend_confirm: false
+      add_requires_ema_length: 20
+      add_requires_confirmations: true
+
+  # Confirmation-only helpers (no entries)
+  - class: RsiOversold
+    enabled: true
+    args:
+      <<: *strategy_flags
+      entry_enabled: false
+      confirmation_lookback_days: 10
+      require_sma200_trend: false
+      sentiment: "BULLISH"
+      direction: "long"
+      stop_multiplier: 2.0
+      take_profit_multiplier: 1.5
+      time_stop_days: 10
+
+  - class: BullishEngulfing
+    enabled: true
+    args:
+      <<: *strategy_flags
+      entry_enabled: false
+      confirmation_lookback_days: 3
+      require_sma50_trend: false
+      sentiment: "BULLISH"
+      direction: "long"
+      stop_multiplier: 2.0
+      take_profit_multiplier: 2.0
+      time_stop_days: 10
+
+  - class: CloseAboveEma50
+    enabled: true
+    args:
+      <<: *strategy_flags
+      entry_enabled: false
+      confirmation_lookback_days: 10
+      consecutive_closes: 1
+      sentiment: "BULLISH"
+      direction: "long"
+      stop_multiplier: 2.0
+
+  - class: AboveEmaState50
+    enabled: true
+    args:
+      <<: *strategy_flags
+      entry_enabled: false
+      confirmation_lookback_days: 0
+      consecutive_closes: 1
+      slope_lookback: 20
+      slope_min: 0.0
+      sentiment: "BULLISH"
+      direction: "long"
+      stop_multiplier: 2.0
+
+  - class: RelativeStrengthLeader
+    enabled: true
+    args:
+      <<: *strategy_flags
+      entry_enabled: false
+      benchmark_symbol: "SPY"
+      lookback_days: 126
+      min_relative_return_pct: 0.0
+      min_rank_percentile: 0.65
+      confirmation_lookback_days: 0
+      sentiment: "BULLISH"
+      direction: "long"
+
+  - class: TrendMaturity
+    enabled: true
+    args:
+      <<: *strategy_flags
+      entry_enabled: false
+      ema_length: 50
+      min_bars_above_ema: 10
+      min_ema_slope_pct: 0.05
+      confirmation_lookback_days: 0
+      sentiment: "BULLISH"
+      direction: "long"
+
+  - class: NoMansLandFilter
+    enabled: true
+    args:
+      <<: *strategy_flags
+      entry_enabled: false
+      ema_fast: 20
+      ema_slow: 50
+      min_atr_pct: 0.8
+      block_if_between_emas: true
+      confirmation_lookback_days: 0
+      sentiment: "BULLISH"
+      direction: "long"
+
+  - class: CloseAboveEma20
+    enabled: true
+    args:
+      <<: *strategy_flags
+      entry_enabled: false
+      confirmation_lookback_days: 3
+      consecutive_closes: 1
+      sentiment: "BULLISH"
+      direction: "long"
+      stop_multiplier: 2.0
+
+  - class: VolumeSpike
+    enabled: true
+    args:
+      <<: *strategy_flags
+      entry_enabled: false
+      confirmation_lookback_days: 0
+      sentiment: "BULLISH"
+      direction: "long"
+      stop_multiplier: 2.0
+      take_profit_multiplier: 3.0
+      time_stop_days: null
+  - class: TrendGate
+    enabled: true
+    args:
+      <<: *strategy_flags
+      entry_enabled: false
+      benchmark_symbol: "SPY"
+      lookback_days: 126
+      min_relative_return_pct: 0.0
+      min_rank_percentile: 0.65
+      ema_length: 50
+      slope_lookback: 20
+      slope_min: 0.0
+      confirmation_lookback_days: 0
+      sentiment: "BULLISH"
+      direction: "long"
+
+  - class: AboveEmaState20
+    enabled: true
+    args:
+      <<: *strategy_flags
+      entry_enabled: false
+      ema_length: 20
+      confirmation_lookback_days: 0
+      consecutive_closes: 1
+      sentiment: "BULLISH"
+      direction: "long"
+      stop_multiplier: 2.0

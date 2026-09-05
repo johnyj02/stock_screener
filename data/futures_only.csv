@@ -1,0 +1,7 @@
+Symbol,Name,Sector
+GC=F,Gold Futures,Commodities
+SI=F,Silver Futures,Commodities
+BTC=F,Bitcoin Futures,Crypto
+ES=F,E-mini S&P 500 Futures,ETF
+MES=F,E-micro S&P 500 Futures,ETF
+DX=F,US Dollar Index Futures,Commodities

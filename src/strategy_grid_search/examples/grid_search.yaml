@@ -1,0 +1,43 @@
+trial_name: "orb15"
+base_config: "src/strategy_backtester/config/backtest_orb15.yaml"
+
+registry_overrides: "src/strategy_grid_search/examples/param_registry_overrides.yaml"
+metrics_registry: "src/strategy_grid_search/examples/metrics_registry.yaml"
+
+params:
+  Orb15BreakoutLong.orb_min_range_points:
+    range: {min: 4.0, max: 8.0, step: 1.0}
+  Orb15BreakoutShort.orb_min_range_points:
+    range: {min: 4.0, max: 8.0, step: 1.0}
+  Orb15BreakoutLong.tp_r_multiple:
+    range: {min: 1.5, max: 3.0, step: 0.25}
+  Orb15BreakoutShort.tp_r_multiple:
+    range: {min: 1.5, max: 3.0, step: 0.25}
+  engine.risk_per_trade_pct:
+    range: {min: 0.1, max: 0.3, step: 0.05}
+
+objectives:
+  - metric: total_return_pct
+    direction: maximize
+    weight: 0.6
+  - metric: sharpe_ratio
+    direction: maximize
+    weight: 0.4
+  - metric: turnover_pct
+    direction: minimize
+    weight: 0.001
+
+search:
+  total_trials: 40
+  random_pct: 0.5
+  parallel_workers: 4
+  seed: 42
+  resume: true
+  optuna:
+    enabled: true
+    sampler: tpe
+    n_jobs: 1
+
+output:
+  save_runs: false
+  top_n: 20

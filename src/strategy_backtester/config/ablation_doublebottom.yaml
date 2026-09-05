@@ -1,0 +1,35 @@
+# Ablation sweeps for DoubleBottom exit parameters.
+# Ablation runner settings
+ablation:
+  base_config: backtest_config.yaml
+  output_dir: "../../../results/ablations"
+  include_baseline: true
+  save_trades: false
+  print_strategy_tables: false
+  # Ablation modes to run
+  modes:
+    - param_sets
+  # Named parameter sets
+  param_sets:
+    - name: "A_trail_150"
+      params:
+        - scope: strategy
+          strategy: DoubleBottomRsiDivergence
+          key: trailing_start_r
+          value: 1.5
+    - name: "B_partial_30"
+      params:
+        - scope: strategy
+          strategy: DoubleBottomRsiDivergence
+          key: partial_take_profit_pct
+          value: 0.3
+    - name: "C_partial_50_trail_150"
+      params:
+        - scope: strategy
+          strategy: DoubleBottomRsiDivergence
+          key: partial_take_profit_pct
+          value: 0.5
+        - scope: strategy
+          strategy: DoubleBottomRsiDivergence
+          key: trailing_start_r
+          value: 1.5

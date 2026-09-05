@@ -1,0 +1,31 @@
+# Ablation: MarketAlignedStructureBreak relaxations (A/B/C).
+ablation:
+  base_config: backtest_market_aligned_structure.yaml
+  output_dir: "../../../results/ablations"
+  include_baseline: true
+  save_trades: false
+  print_strategy_tables: false
+  modes:
+    - param_sets
+  param_sets:
+    # A) Prefer Fib target when it yields better RR than next ILS.
+    - name: fib_rr_override
+      params:
+        - scope: strategy
+          strategy: MarketAlignedStructureBreak
+          key: prefer_fib_if_rr_better
+          value: true
+    # B) Slightly lower RR floor to increase frequency.
+    - name: rr_floor_17
+      params:
+        - scope: strategy
+          strategy: MarketAlignedStructureBreak
+          key: min_rr
+          value: 1.7
+    # C) Retest within ATR band around the level.
+    - name: retest_band_atr_05
+      params:
+        - scope: strategy
+          strategy: MarketAlignedStructureBreak
+          key: retest_band_atr
+          value: 0.5

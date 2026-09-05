@@ -1,0 +1,208 @@
+# ORB 15-minute breakout on 5-minute bars.
+# Note: yfinance 5m data is limited (~60 days).
+backtest:
+  start_date: "2024-01-01"
+  end_date: "2025-01-07"
+  interval: "5m"
+  tickers_file: "/mnt/d/Projects/stock_screener/src/strategy_grid_search/data/futures_only.csv"
+  data_source:
+    type: ibkr
+    ibkr:
+      host: 172.31.112.1
+      port: 7497
+      client_id: 1
+      allow_partial: true
+      what_to_show: TRADES
+      use_rth: false
+      max_requests_per_min: 6
+      min_sleep_seconds: 10.0
+      auto_futures_months_ahead: 2
+      futures_contract_mode: auto_roll
+      max_history_days_by_interval:
+        "5m": 1825
+  engine:
+    initial_capital: 100000.0
+    take_profit_multiplier: null
+    trade_size: 100000.0
+    max_alloc_pct: 0.6
+    risk_per_trade_pct: 0.5
+    portfolio_vol_target: 0.11
+    portfolio_vol_lookback: 63
+    regime_symbol: "SPY"
+    hedge_symbol: "MES=F"
+    allow_risk_off_entries: true
+    risk_off_size_mult: 1.0
+    exit_on_risk_off: false
+    allow_short_risk_on: true
+    allow_short_equity: true
+    max_new_positions_per_day: 20
+    liquidity_lookback: 20
+    min_avg_dollar_vol: 0
+    min_avg_volume_futures: 0
+    cooldown_days: 0
+    regime_stability_days: 0
+    breakeven_r: -0.1
+    breakeven_delay_bars: 1
+    regime_flip_band_pct: 0.0075
+    regime_flip_slope_pct: 0.0005
+    commission_per_trade: 0.0
+    commission_pct: 0.0002
+    slippage_bps: 2.0
+    min_trade_notional: 0.0
+    min_equity_shares: 1
+    position_qty_epsilon: 0.000001
+    skip_trade_if_notional_lt_min: true
+    equity_qty_rounding: "floor_int"
+    use_vectorized: true
+    force_update_cache: false
+    futures_margin_pct: 0.1
+
+strategy_flags: &strategy_flags
+  use_stop_loss: true
+  use_fallback_stop: true
+  use_take_profit: true
+  use_exit_signal: false
+  use_time_stop: false
+  use_regime_exit: false
+  use_breakeven: true
+  allow_risk_off_entries: true
+  allow_short_risk_on: true
+  market_symbols: ["QQQ", "UVXY"]
+  risk_off_size_mult: null
+  require_regime_stability: false
+  regime_stability_days: null
+  avoid_regime_flip: false
+  regime_flip_band_pct: null
+  regime_flip_slope_pct: null
+  allow_regime_bypass_large_gap: false
+  breakeven_r: null
+  breakeven_delay_bars: null
+  giveback_enabled: false
+  giveback_trigger_r: 2.0
+  giveback_floor_r: 1.0
+  giveback_min_days: 0
+  partial_take_profit_enabled: false
+  partial_take_profit_r: 1.0
+  partial_take_profit_pct: 0.5
+  decay_exit_enabled: false
+  decay_exit_days: 0
+  decay_exit_mfe_r: 0.5
+  loss_cooldown_days: null
+  regime_gating:
+    enabled: true
+    mode: "OR"
+    gates:
+      atr_expansion_15m:
+        enabled: true
+        lookback_days: 60
+      mkt_risk_on:
+        enabled: true
+      mkt_trend_ok:
+        enabled: false
+  trade_count:
+    max_trades_per_day: 2
+    allow_second_trade_if_first_mfe_r_ge: 0.5
+    block_second_trade_if_first_exit_r_le: -1.0
+    allow_second_trade_if_trend_gate_true: true
+  tp_management:
+    commission_aware: true
+    buckets:
+      lt_2:
+        breakeven_trigger_r: 0.75
+        breakeven_delay_bars: 0
+        breakeven_buffer_r: -0.05
+        exit_cutoff_shift_minutes: -15
+      gte_2_lt_2_5:
+        breakeven_trigger_r: 1.0
+        breakeven_delay_bars: 1
+        breakeven_buffer_r: -0.10
+        exit_cutoff_shift_minutes: 0
+      gte_2_5:
+        breakeven_trigger_r: 1.25
+        breakeven_delay_bars: 2
+        breakeven_buffer_r: -0.15
+        exit_cutoff_shift_minutes: 30
+        exit_cutoff_cap_time: "15:55"
+
+strategies:
+  - class: Orb15BreakoutLong
+    enabled: true
+    args:
+      <<: *strategy_flags
+      sentiment: "BULLISH"
+      direction: "long"
+      orb_start_time: "09:30"
+      orb_end_time: "10:30"
+      entry_cutoff_time: "10:55"
+      session_timezone: "America/New_York"
+      index_timezone: "UTC"
+      orb_range:
+        orb_min_range_points: 6.0
+        orb_max_range_atr_pct: 0.60
+        orb_max_range_points: 30.0
+      tp_r_multiple: 2.75
+      orb_trade_group: "ORB15"
+      orb_max_trades_per_day: 2
+      orb_allow_flip_on_stop: false
+      vwap_entry_filter_enabled: true
+      vwap_orb_levels_filter_enabled: false
+      skip_events_enabled: true
+      skip_events_file: "data/news_days.csv"
+      skip_events_types: null
+      debug_orb: false
+      debug_allocation: false
+      use_exit_signal: true
+      exit_cutoff_time: "15:00"
+
+
+  - class: Orb15BreakoutShort
+    enabled: true
+    args:
+      <<: *strategy_flags
+      sentiment: "BEARISH"
+      direction: "short"
+      orb_start_time: "09:30"
+      orb_end_time: "10:00"
+      entry_cutoff_time: "11:30"
+      session_timezone: "America/New_York"
+      index_timezone: "UTC"
+      orb_range:
+        orb_min_range_points: 4.0
+        orb_max_range_atr_pct: 0.60
+        orb_max_range_points: 30.0
+      tp_r_multiple: 2.0
+      orb_trade_group: "ORB15"
+      orb_max_trades_per_day: 2
+      orb_allow_flip_on_stop: false
+      vwap_entry_filter_enabled: true
+      vwap_orb_levels_filter_enabled: false
+      skip_events_enabled: true
+      skip_events_file: "data/news_days.csv"
+      skip_events_types: null
+      debug_orb: false
+      debug_allocation: false
+      use_exit_signal: true
+      exit_cutoff_time: "15:55"
+
+charts:
+  enabled: true
+  mode: post
+  tickers: traded_only
+  output_dir: charts
+  format: svg
+  style: candles
+  dpi: 200
+  figsize: [14, 8]
+  per_position: true
+  include_full: false
+  window_bars_before: 40
+  window_bars_after: 40
+  include_adds: true
+  include_partials: true
+  ema_periods: [20, 50]
+  sma_periods: [200]
+  include_volume: true
+  include_rsi: true
+  rsi_length: 14
+  rsi_overbought: 70
+  rsi_oversold: 25

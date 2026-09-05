@@ -1,0 +1,51 @@
+Symbol,Name,Sector
+AAPL,Apple Inc.,Technology
+MSFT,Microsoft Corporation,Technology
+GOOGL,Alphabet Inc.,Technology
+AMZN,Amazon.com Inc.,Consumer Cyclical
+NVDA,NVIDIA Corporation,Technology
+META,Meta Platforms Inc.,Technology
+TSLA,Tesla Inc.,Consumer Cyclical
+BRK-B,Berkshire Hathaway Inc.,Financial Services
+LLY,Eli Lilly and Company,Healthcare
+V,Visa Inc.,Financial Services
+TSM,Taiwan Semiconductor Manufacturing,Technology
+UNH,UnitedHealth Group Incorporated,Healthcare
+AVGO,Broadcom Inc.,Technology
+JPM,JPMorgan Chase & Co.,Financial Services
+XOM,Exxon Mobil Corporation,Energy
+WMT,Walmart Inc.,Consumer Defensive
+JNJ,Johnson & Johnson,Healthcare
+MA,Mastercard Incorporated,Financial Services
+PG,Procter & Gamble Company,Consumer Defensive
+HD,The Home Depot Inc.,Consumer Cyclical
+MRK,Merck & Co. Inc.,Healthcare
+COST,Costco Wholesale Corporation,Consumer Defensive
+ABBV,AbbVie Inc.,Healthcare
+CVX,Chevron Corporation,Energy
+CRM,Salesforce Inc.,Technology
+AMD,Advanced Micro Devices Inc.,Technology
+BAC,Bank of America Corporation,Financial Services
+PEP,PepsiCo Inc.,Consumer Defensive
+KO,The Coca-Cola Company,Consumer Defensive
+NFLX,Netflix Inc.,Communication Services
+ADBE,Adobe Inc.,Technology
+DIS,The Walt Disney Company,Communication Services
+TMO,Thermo Fisher Scientific Inc.,Healthcare
+CSCO,Cisco Systems Inc.,Technology
+MCD,McDonald's Corporation,Consumer Cyclical
+ABT,Abbott Laboratories,Healthcare
+DHR,Danaher Corporation,Healthcare
+INTC,Intel Corporation,Technology
+VZ,Verizon Communications Inc.,Communication Services
+CMCSA,Comcast Corporation,Communication Services
+PFE,Pfizer Inc.,Healthcare
+NKE,NIKE Inc.,Consumer Cyclical
+WFC,Wells Fargo & Company,Financial Services
+LIN,Linde plc,Basic Materials
+PM,Philip Morris International Inc.,Consumer Defensive
+INTU,Intuit Inc.,Technology
+TXN,Texas Instruments Incorporated,Technology
+AMGN,Amgen Inc.,Healthcare
+IBM,International Business Machines Corporation,Technology
+QCOM,QUALCOMM Incorporated,Technology

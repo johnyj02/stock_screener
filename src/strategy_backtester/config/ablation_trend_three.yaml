@@ -1,0 +1,184 @@
+# Ablation run comparing the three trend-only variants.
+ablation:
+  base_config: backtest_trend_only_ablation_base.yaml
+  output_dir: "../../../results/ablations"
+  include_baseline: false
+  save_trades: false
+  print_strategy_tables: false
+  # Only run the three custom param sets
+  modes:
+    - param_set
+  param_sets:
+    - name: decay_only
+      params:
+        - scope: strategy
+          strategy: PullbackToEma
+          key: decay_exit_enabled
+          value: true
+        - scope: strategy
+          strategy: PullbackToEma
+          key: decay_exit_days
+          value: 7
+        - scope: strategy
+          strategy: PullbackToEma
+          key: decay_exit_mfe_r
+          value: 0.5
+    - name: decay_plus_state
+      params:
+        - scope: strategy
+          strategy: PullbackToEma
+          key: decay_exit_enabled
+          value: true
+        - scope: strategy
+          strategy: PullbackToEma
+          key: decay_exit_days
+          value: 7
+        - scope: strategy
+          strategy: PullbackToEma
+          key: decay_exit_mfe_r
+          value: 0.5
+        - scope: strategy
+          strategy: PullbackToEma
+          key: confirmation_all
+          value: ["AboveEmaState50"]
+    - name: state_adds_trail
+      params:
+        # Decay exit
+        - scope: strategy
+          strategy: PullbackToEma
+          key: decay_exit_enabled
+          value: true
+        - scope: strategy
+          strategy: PullbackToEma
+          key: decay_exit_days
+          value: 7
+        - scope: strategy
+          strategy: PullbackToEma
+          key: decay_exit_mfe_r
+          value: 0.5
+        # Strict EMA50 state filter
+        - scope: strategy
+          strategy: PullbackToEma
+          key: confirmation_all
+          value: ["AboveEmaState50"]
+        # Trailing instead of hard TP
+        - scope: strategy
+          strategy: PullbackToEma
+          key: use_take_profit
+          value: false
+        - scope: strategy
+          strategy: PullbackToEma
+          key: take_profit_multiplier
+          value: null
+        - scope: strategy
+          strategy: PullbackToEma
+          key: trailing_enabled
+          value: true
+        - scope: strategy
+          strategy: PullbackToEma
+          key: trailing_start_r
+          value: 1.0
+        - scope: strategy
+          strategy: PullbackToEma
+          key: trailing_use_mmt
+          value: false
+        - scope: strategy
+          strategy: PullbackToEma
+          key: trailing_use_avwap
+          value: false
+        - scope: strategy
+          strategy: PullbackToEma
+          key: trailing_use_ema20
+          value: true
+        - scope: strategy
+          strategy: PullbackToEma
+          key: trailing_method
+          value: "max"
+        - scope: strategy
+          strategy: PullbackToEma
+          key: trailing_ema_length
+          value: 20
+        # Later + fewer add-ons (Pullback)
+        - scope: strategy
+          strategy: PullbackToEma
+          key: max_adds
+          value: 1
+        - scope: strategy
+          strategy: PullbackToEma
+          key: add_min_peak_r
+          value: 1.5
+        - scope: strategy
+          strategy: PullbackToEma
+          key: add_min_days_since_entry
+          value: 5
+        - scope: strategy
+          strategy: PullbackToEma
+          key: add_min_bars_between_adds
+          value: 10
+        - scope: strategy
+          strategy: PullbackToEma
+          key: add_only_if_above_trail
+          value: true
+        # Later + fewer add-ons (Flag)
+        - scope: strategy
+          strategy: FlagPennantContinuation
+          key: max_adds
+          value: 1
+        - scope: strategy
+          strategy: FlagPennantContinuation
+          key: add_min_peak_r
+          value: 1.5
+        - scope: strategy
+          strategy: FlagPennantContinuation
+          key: add_min_days_since_entry
+          value: 5
+        - scope: strategy
+          strategy: FlagPennantContinuation
+          key: add_min_bars_between_adds
+          value: 10
+        - scope: strategy
+          strategy: FlagPennantContinuation
+          key: add_only_if_above_trail
+          value: true
+        # Later + fewer add-ons (Triangle)
+        - scope: strategy
+          strategy: TriangleBreakout
+          key: max_adds
+          value: 1
+        - scope: strategy
+          strategy: TriangleBreakout
+          key: add_min_peak_r
+          value: 1.5
+        - scope: strategy
+          strategy: TriangleBreakout
+          key: add_min_days_since_entry
+          value: 5
+        - scope: strategy
+          strategy: TriangleBreakout
+          key: add_min_bars_between_adds
+          value: 10
+        - scope: strategy
+          strategy: TriangleBreakout
+          key: add_only_if_above_trail
+          value: true
+        # Later + fewer add-ons (SR Break Retest)
+        - scope: strategy
+          strategy: SupportResistanceBreakRetest
+          key: max_adds
+          value: 1
+        - scope: strategy
+          strategy: SupportResistanceBreakRetest
+          key: add_min_peak_r
+          value: 1.5
+        - scope: strategy
+          strategy: SupportResistanceBreakRetest
+          key: add_min_days_since_entry
+          value: 5
+        - scope: strategy
+          strategy: SupportResistanceBreakRetest
+          key: add_min_bars_between_adds
+          value: 10
+        - scope: strategy
+          strategy: SupportResistanceBreakRetest
+          key: add_only_if_above_trail
+          value: true

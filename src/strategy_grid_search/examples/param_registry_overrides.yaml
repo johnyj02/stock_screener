@@ -1,0 +1,20 @@
+Orb15BreakoutLong.orb_min_range_points:
+  range: {min: 4.0, max: 8.0, step: 1.0}
+
+Orb15BreakoutShort.orb_min_range_points:
+  range: {min: 4.0, max: 8.0, step: 1.0}
+
+Orb15BreakoutLong.orb_max_range_points:
+  range: {min: 15.0, max: 30.0, step: 5.0}
+
+Orb15BreakoutShort.orb_max_range_points:
+  range: {min: 15.0, max: 30.0, step: 5.0}
+
+Orb15BreakoutLong.tp_r_multiple:
+  range: {min: 1.5, max: 3.0, step: 0.25}
+
+Orb15BreakoutShort.tp_r_multiple:
+  range: {min: 1.5, max: 3.0, step: 0.25}
+
+engine.risk_per_trade_pct:
+  range: {min: 0.1, max: 0.3, step: 0.05}

@@ -1,0 +1,406 @@
+# Default backtest config (full strategy suite).
+# Backtest range & data source
+backtest:
+  start_date: "2020-01-01"
+  end_date: "2025-12-31"
+  interval: "1d"
+  tickers_file: "/mnt/d/Projects/stock_screener/src/strategy_grid_search/data/sp500.csv"
+
+  # tickers:
+  #   - "AAPL"
+  #   - "MSFT"
+  # Engine sizing, risk, and execution controls
+  engine:
+    # Capital & sizing
+    initial_capital: 100000.0
+    trade_size: 3000.0
+    max_alloc_pct: 0.4
+    risk_per_trade_pct: 0.005
+    portfolio_vol_target: 0.11
+    portfolio_vol_lookback: 63
+    # Regime/hedge controls
+    regime_symbol: "SPY"
+    hedge_symbol: "MES=F"
+    allow_risk_off_entries: false
+    risk_off_size_mult: 0.5
+    exit_on_risk_off: true
+    allow_short_risk_on: false
+    # Execution & liquidity filters
+    max_new_positions_per_day: 20
+    liquidity_lookback: 20
+    min_avg_dollar_vol: 20000000
+    min_avg_volume_futures: 1000
+    # Cooldowns & stability
+    cooldown_days: 5
+    regime_stability_days: 4
+    breakeven_r: -0.1
+    breakeven_delay_bars: 1
+    regime_flip_band_pct: 0.0075
+    regime_flip_slope_pct: 0.0005
+    # Costs & slippage
+    commission_per_trade: 0.0
+    commission_pct: 0.0
+    slippage_bps: 0.0
+    # Dust-trade guards
+    min_trade_notional: 0.0
+    min_equity_shares: 1
+    position_qty_epsilon: 0.000001
+    skip_trade_if_notional_lt_min: true
+    equity_qty_rounding: "floor_int"
+    # Performance toggles
+    use_vectorized: true
+
+strategy_flags: &strategy_flags
+  # Exit toggles
+  use_stop_loss: true
+  use_fallback_stop: true
+  use_take_profit: true
+  use_exit_signal: true
+  use_time_stop: true
+  use_regime_exit: true
+  use_breakeven: true
+  # Regime overrides
+  allow_risk_off_entries: null
+  allow_short_risk_on: null
+  risk_off_size_mult: null
+  require_regime_stability: false
+  regime_stability_days: null
+  avoid_regime_flip: false
+  regime_flip_band_pct: null
+  regime_flip_slope_pct: null
+  allow_regime_bypass_large_gap: false
+  # Breakeven overrides
+  breakeven_r: null
+  breakeven_delay_bars: null
+  # Giveback exits
+  giveback_enabled: false
+  giveback_trigger_r: 2.0
+  giveback_floor_r: 1.0
+  giveback_min_days: 0
+  # Partial exits
+  partial_take_profit_enabled: false
+  partial_take_profit_r: 1.0
+  partial_take_profit_pct: 0.5
+  # Decay exits
+  decay_exit_enabled: false
+  decay_exit_days: 0
+  decay_exit_mfe_r: 0.5
+  # Loss cooldown
+  loss_cooldown_days: null
+
+# Strategy list and per-strategy overrides
+strategies:
+  - class: RsiOversold
+    enabled: true
+    args:
+      <<: *strategy_flags
+      sentiment: "BULLISH"
+      direction: "long"
+      stop_multiplier: 2.0
+      take_profit_multiplier: 1.5
+      time_stop_days: 10
+  - class: MacdTurnaround
+    enabled: true
+    args:
+      <<: *strategy_flags
+      sentiment: "BULLISH"
+      direction: "long"
+      stop_multiplier: 2.0
+      take_profit_multiplier: 3.0
+      time_stop_days: null
+  - class: VptBreakout
+    enabled: true
+    args:
+      <<: *strategy_flags
+      sentiment: "BULLISH"
+      direction: "long"
+      stop_multiplier: 2.0
+      take_profit_multiplier: 4.0
+      time_stop_days: null
+  - class: BearishRsiDivergence
+    enabled: true
+    args:
+      <<: *strategy_flags
+      sentiment: "BEARISH"
+      direction: "short"
+      stop_multiplier: 2.0
+      take_profit_multiplier: 2.0
+      time_stop_days: .inf
+  - class: BullishEngulfing
+    enabled: true
+    args:
+      <<: *strategy_flags
+      sentiment: "BULLISH"
+      direction: "long"
+      stop_multiplier: 2.0
+      take_profit_multiplier: 2.0
+      time_stop_days: 10
+  - class: CloseAboveEma20
+    enabled: true
+    args:
+      <<: *strategy_flags
+      entry_enabled: false
+      confirmation_lookback_days: 3
+      consecutive_closes: 1
+      sentiment: "BULLISH"
+      direction: "long"
+      stop_multiplier: 2.0
+  - class: VolumeSpike
+    enabled: true
+    args:
+      <<: *strategy_flags
+      sentiment: "BULLISH"
+      direction: "long"
+      stop_multiplier: 2.0
+      take_profit_multiplier: 3.0
+      time_stop_days: null
+  - class: GoldenCross
+    enabled: true
+    args:
+      <<: *strategy_flags
+      sentiment: "BULLISH"
+      direction: "long"
+      stop_multiplier: 2.0
+      take_profit_multiplier: null
+      time_stop_days: null
+  - class: SupertrendReversal
+    enabled: true
+    args:
+      <<: *strategy_flags
+      sentiment: "BULLISH"
+      direction: "long"
+      stop_multiplier: 2.0
+      take_profit_multiplier: null
+      time_stop_days: null
+  - class: PullbackToEma
+    enabled: true
+    args:
+      <<: *strategy_flags
+      sentiment: "BULLISH"
+      direction: "long"
+      stop_multiplier: 2.0
+      take_profit_multiplier: 3.0
+      time_stop_days: 15
+      require_sma200_trend: false
+      require_ema50_trend: false
+      min_atr_pct: 0.0
+      min_pullback_dist_pct: 0.0
+      max_pullback_dist_pct: null
+  - class: BollingerSqueeze
+    enabled: true
+    args:
+      <<: *strategy_flags
+      sentiment: "WATCH"
+      direction: "long"
+      stop_multiplier: 2.0
+      take_profit_multiplier: null
+      time_stop_days: null
+  - class: Nr4Nr7
+    enabled: true
+    args:
+      <<: *strategy_flags
+      sentiment: "WATCH"
+      direction: "long"
+      stop_multiplier: 2.0
+      take_profit_multiplier: null
+      time_stop_days: null
+  - class: Nr4Nr7Intraday
+    enabled: true
+    args:
+      <<: *strategy_flags
+      sentiment: "WATCH"
+      direction: "long"
+      stop_multiplier: 2.0
+      take_profit_multiplier: null
+      time_stop_days: null
+  - class: Nr4Nr7Daily
+    enabled: true
+    args:
+      <<: *strategy_flags
+      sentiment: "WATCH"
+      direction: "long"
+      stop_multiplier: 2.0
+      take_profit_multiplier: null
+      time_stop_days: null
+  - class: GapUpContinuation
+    enabled: true
+    args:
+      <<: *strategy_flags
+      sentiment: "BULLISH"
+      direction: "long"
+      stop_multiplier: 2.0
+      take_profit_multiplier: 3.0
+      time_stop_days: 5
+      stop_mode: "structure_first"
+      require_regime_stability: true
+      allow_regime_bypass_large_gap: true
+      avoid_regime_flip: true
+      tight_stop_bars: 2
+      max_initial_r_pct: 0.04
+      exit_on_d1_close_below_gap_low: true
+      exit_on_d2_no_higher_high: true
+      large_gap_follow_through: true
+      giveback_enabled: true
+      giveback_trigger_r: 2.0
+      giveback_floor_r: 1.0
+      giveback_min_days: 2
+  - class: GapDownContinuation
+    enabled: true
+    args:
+      <<: *strategy_flags
+      sentiment: "BEARISH"
+      direction: "short"
+      stop_multiplier: 2.0
+      take_profit_multiplier: 3.0
+      time_stop_days: 5
+      stop_mode: "structure_first"
+      allow_regime_bypass_large_gap: true
+      avoid_regime_flip: true
+      tight_stop_bars: 2
+      max_initial_r_pct: 0.04
+      exit_on_d1_close_above_gap_high: true
+      exit_on_d2_no_lower_low: true
+      large_gap_follow_through: true
+      giveback_enabled: true
+      giveback_trigger_r: 2.0
+      giveback_floor_r: 1.0
+      giveback_min_days: 2
+  - class: GapUpFade
+    enabled: true
+    args:
+      <<: *strategy_flags
+      sentiment: "BEARISH"
+      direction: "short"
+      stop_multiplier: 2.0
+      take_profit_multiplier: 2.0
+      time_stop_days: 5
+  - class: GapDownFade
+    enabled: true
+    args:
+      <<: *strategy_flags
+      sentiment: "BULLISH"
+      direction: "long"
+      stop_multiplier: 2.0
+      take_profit_multiplier: 2.0
+      time_stop_days: 5
+  - class: RsiOverbought
+    enabled: true
+    args:
+      <<: *strategy_flags
+      sentiment: "BEARISH"
+      direction: "short"
+      stop_multiplier: 2.0
+      take_profit_multiplier: 1.5
+      time_stop_days: 8
+  - class: MacdBearishCross
+    enabled: true
+    args:
+      <<: *strategy_flags
+      sentiment: "BEARISH"
+      direction: "short"
+      stop_multiplier: 2.0
+      take_profit_multiplier: 2.5
+      time_stop_days: null
+  - class: Breakdown20
+    enabled: true
+    args:
+      <<: *strategy_flags
+      sentiment: "BEARISH"
+      direction: "short"
+      stop_multiplier: 2.0
+      take_profit_multiplier: 2.5
+      time_stop_days: 12
+  - class: HeadAndShouldersReversal
+    enabled: true
+    args:
+      <<: *strategy_flags
+      sentiment: "BEARISH"
+      direction: "short"
+      stop_multiplier: 2.0
+      take_profit_multiplier: null
+      time_stop_days: null
+  - class: DoubleTopRsiDivergence
+    enabled: true
+    args:
+      <<: *strategy_flags
+      sentiment: "BEARISH"
+      direction: "short"
+      stop_multiplier: 2.0
+      take_profit_multiplier: null
+      time_stop_days: null
+  - class: DoubleBottomRsiDivergence
+    enabled: true
+    args:
+      <<: *strategy_flags
+      sentiment: "BULLISH"
+      direction: "long"
+      stop_multiplier: 1.5
+      take_profit_multiplier: null
+      time_stop_days: null
+      use_take_profit: false
+      partial_take_profit_enabled: true
+      partial_take_profit_mode: "take_profit"
+      partial_take_profit_pct: 0.3
+      trailing_enabled: true
+      trailing_start_r: 1.25
+      trailing_use_mmt: true
+      trailing_use_avwap: true
+      trailing_use_ema20: true
+      trailing_method: "max"
+      trailing_ema_length: 20
+      trend_confirm_enabled: true
+      trend_confirm_mode: "either"
+      trend_confirm_consecutive_closes: 2
+      trend_confirm_lookback_days: 5
+      trend_trailing_method: "ema"
+      trend_trailing_ema_length: 50
+      exhaustion_enabled: true
+      exhaustion_min_signals: 2
+      exhaustion_rsi_level: 70.0
+      exhaustion_rsi_rollover_bars: 2
+      exhaustion_candle_close_loc: 0.4
+      exhaustion_resistance_lookback: 40
+      exhaustion_resistance_atr_mult: 0.4
+      exhaustion_volume_ratio: 0.9
+      exhaustion_stall_atr_mult: 0.25
+      exhaustion_require_near_or_mmt: true
+      exhaustion_disable_after_trend_confirm: true
+      addons_enabled: true
+      max_adds: 1
+      add_size_pct_initial: 0.5
+      add_min_peak_r: 1.5
+      add_min_days_since_entry: 3
+      add_only_if_above_trail: true
+      add_requires_trend_confirm: true
+      add_requires_trend_confirm_bars: 2
+      confirmation_any:
+        - "RsiOversold"
+        - "BullishEngulfing"
+        - "CloseAboveEma20"
+  - class: TriangleBreakout
+    enabled: true
+    args:
+      <<: *strategy_flags
+      sentiment: "BULLISH"
+      direction: "long"
+      stop_multiplier: 2.0
+      take_profit_multiplier: null
+      time_stop_days: null
+  - class: FlagPennantContinuation
+    enabled: true
+    args:
+      <<: *strategy_flags
+      sentiment: "BULLISH"
+      direction: "long"
+      stop_multiplier: 2.0
+      take_profit_multiplier: null
+      time_stop_days: null
+  - class: SupportResistanceBreakRetest
+    enabled: true
+    args:
+      <<: *strategy_flags
+      sentiment: "BULLISH"
+      direction: "long"
+      stop_multiplier: 2.0
+      take_profit_multiplier: null
+      time_stop_days: null

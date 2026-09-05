@@ -1,0 +1,168 @@
+# LMR-PB + VTX-BRK regime stack.
+backtest:
+  start_date: "2010-01-01"
+  end_date: "2015-12-31"
+  interval: "1d"
+  tickers_file: "/mnt/d/Projects/stock_screener/data/sp500_top50.csv"
+
+  engine:
+    initial_capital: 100000.0
+    trade_size: 10000.0
+    max_alloc_pct: 0.6
+    risk_per_trade_pct: 0.005
+    portfolio_vol_target: 0.11
+    portfolio_vol_lookback: 63
+    regime_symbol: "SPY"
+    hedge_symbol: "MES=F"
+    allow_risk_off_entries: false
+    risk_off_size_mult: 0.5
+    exit_on_risk_off: true
+    allow_short_risk_on: false
+    allow_short_equity: true
+    max_new_positions_per_day: 10
+    liquidity_lookback: 20
+    min_avg_dollar_vol: 20000000
+    min_avg_volume_futures: 1000
+    cooldown_days: 5
+    regime_stability_days: 4
+    breakeven_r: -0.1
+    breakeven_delay_bars: 1
+    regime_flip_band_pct: 0.0075
+    regime_flip_slope_pct: 0.0005
+    commission_per_trade: 0.0
+    commission_pct: 0.0002
+    slippage_bps: 2.0
+    min_trade_notional: 0.0
+    min_equity_shares: 1
+    position_qty_epsilon: 0.000001
+    skip_trade_if_notional_lt_min: true
+    equity_qty_rounding: "floor_int"
+    use_vectorized: true
+
+strategy_flags: &strategy_flags
+  use_stop_loss: true
+  use_fallback_stop: true
+  use_take_profit: true
+  use_exit_signal: true
+  use_time_stop: true
+  use_regime_exit: true
+  use_breakeven: true
+  allow_risk_off_entries: null
+  allow_short_risk_on: null
+  risk_off_size_mult: null
+  require_regime_stability: false
+  regime_stability_days: null
+  avoid_regime_flip: false
+  regime_flip_band_pct: null
+  regime_flip_slope_pct: null
+  allow_regime_bypass_large_gap: false
+  breakeven_r: null
+  breakeven_delay_bars: null
+  giveback_enabled: false
+  giveback_trigger_r: 2.0
+  giveback_floor_r: 1.0
+  giveback_min_days: 0
+  partial_take_profit_enabled: false
+  partial_take_profit_r: 1.0
+  partial_take_profit_pct: 0.5
+  decay_exit_enabled: false
+  decay_exit_days: 0
+  decay_exit_mfe_r: 0.5
+  loss_cooldown_days: null
+
+strategies:
+  - class: Sma200RsiOversoldFib
+    enabled: true
+    args:
+      <<: *strategy_flags
+      sentiment: "BULLISH"
+      direction: "long"
+      stop_multiplier: 2.0
+      take_profit_multiplier: null
+      time_stop_days: null
+      allow_risk_off_entries: true
+      use_regime_exit: false
+      require_regime_filter: true
+      regime_filter_column: "MKT_RISK_ON_MEAN_REVERSION"
+      sma_length: 200
+      sma_distance_min_pct: 0.07
+      volume_sma_length: 20
+      rsi_length: 14
+      rsi_oversold: 25.0
+      require_rsi_cross: true
+      rsi_overbought: 70.0
+      sma_exit_buffer_pct: 0.0
+      fib_lookback: 60
+      fib_levels: [0.236, 0.382, 0.5]
+      fib_level_pcts: 0.5
+      take_profit_level_pct_mode: "remaining"
+      structure_stop_atr_mult: 0.25
+      percent_stop_pct: 0.03
+      stop_cooldown_days: 15
+      # Early failure exit (close below entry within 5 bars)
+      early_failure_exit_enabled: true
+      early_failure_bars: 5
+      early_failure_requires_close_below_entry: true
+      # Only tighten structure stop after ATR contracts
+      atr_contraction_tighten_enabled: true
+      atr_contraction_tighten_threshold: 0.8
+      atr_contraction_lookback: 20
+      # Momentum fail-fast (RSI must rebound within 3 bars)
+      momentum_fail_exit_enabled: true
+      momentum_fail_entry_rsi: 30.0
+      momentum_fail_confirm_rsi: 35.0
+      momentum_fail_confirm_bars: 4
+      momentum_fail_rsi_length: 14
+
+  - class: VTX-BRK
+    enabled: true
+    args:
+      <<: *strategy_flags
+      sentiment: "BEARISH"
+      direction: "short"
+      allow_short_risk_on: true
+      use_regime_exit: false
+      require_regime_filter: true
+      regime_filter_column: "MKT_RISK_ON_MEAN_REVERSION"
+      regime_filter_invert: true
+      sma_length: 200
+      sma_entry_buffer_pct: 0.02
+      atr_length: 20
+      atr_expand_lookback: 5
+      breakdown_lookback: 20
+      breakdown_buffer_pct: 0.05
+      fib_lookback: 60
+      fib_levels: [0.786, 0.618, 0.5]
+      fib_level_pcts: 0.5
+      take_profit_level_pct_mode: "remaining"
+      partial_take_profit_enabled: true
+      partial_take_profit_r: 1.0
+      partial_take_profit_pct: 0.5
+      trailing_enabled: true
+      trailing_start_r: 1.0
+      trailing_use_ema20: true
+      trailing_ema_length: 20
+      trailing_method: "min"
+      trailing_atr_mult: 1.0
+charts:
+  enabled: true
+  mode: post
+  tickers: traded_only
+  output_dir: charts
+  format: svg
+  style: candles
+  dpi: 200
+  figsize: [14, 8]
+  per_position: true
+  include_full: false
+  window_bars_before: 40
+  window_bars_after: 40
+  include_adds: true
+  include_partials: true
+  ema_periods: [20, 50]
+  sma_periods: [200]
+  include_volume: true
+  include_rsi: true
+  rsi_length: 14
+  rsi_overbought: 70
+  rsi_oversold: 25

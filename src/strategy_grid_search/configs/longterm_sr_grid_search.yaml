@@ -1,0 +1,217 @@
+trial_name: "longterm_sr"
+base_config: "src/strategy_backtester/config/backtest_longterm_sr.yaml"
+
+metrics_registry: "src/strategy_grid_search/examples/metrics_registry.yaml"
+
+params:
+  # Long-term SR structure + retest logic
+  LongTermSupportResistanceBreakRetest.levels_lookback_weeks:
+    values: [78, 104, 130, 156, 182]
+  LongTermSupportResistanceBreakRetest.pivot_left:
+    values: [2, 3, 4, 5]
+  LongTermSupportResistanceBreakRetest.pivot_right:
+    values: [2, 3, 4, 5]
+  LongTermSupportResistanceBreakRetest.min_touches:
+    values: [2, 3, 4]
+  LongTermSupportResistanceBreakRetest.cluster_atr_mult:
+    range: {min: 0.4, max: 1.2, step: 0.1}
+  LongTermSupportResistanceBreakRetest.max_levels:
+    values: [8, 12, 16, 20]
+
+  LongTermSupportResistanceBreakRetest.break_buffer_pct:
+    range: {min: 0.0005, max: 0.003, step: 0.0005}
+  LongTermSupportResistanceBreakRetest.break_confirm_closes:
+    values: [1, 2, 3]
+  LongTermSupportResistanceBreakRetest.retest_max_days:
+    values: [20, 30, 45, 60]
+  LongTermSupportResistanceBreakRetest.retest_confirm_closes:
+    values: [1, 2, 3]
+  LongTermSupportResistanceBreakRetest.min_level_distance_atr:
+    range: {min: 1.0, max: 2.5, step: 0.25}
+
+  LongTermSupportResistanceBreakRetest.stop_atr_mult:
+    range: {min: 0.8, max: 1.6, step: 0.1}
+  LongTermSupportResistanceBreakRetest.max_stop_atr:
+    range: {min: 2.0, max: 4.0, step: 0.25}
+  LongTermSupportResistanceBreakRetest.time_stop_days:
+    values: [15, 20, 25, 30, 40]
+
+  LongTermSupportResistanceBreakRetest.strategy_risk_mult:
+    range: {min: 1.0, max: 3.0, step: 0.25}
+  LongTermSupportResistanceBreakRetest.strategy_max_position_pct:
+    range: {min: 0.05, max: 0.25, step: 0.02}
+
+  # Arm/expiry behavior
+  LongTermSupportResistanceBreakRetest.arm_across_regime:
+    values: [true, false]
+  LongTermSupportResistanceBreakRetest.arm_expiry_days:
+    values: [20, 30, 45, 60, 90]
+  LongTermSupportResistanceBreakRetest.arm_requires_risk_on_entry:
+    values: [true, false]
+  LongTermSupportResistanceBreakRetest.arm_invalidate_on_close_below_level:
+    values: [true, false]
+  LongTermSupportResistanceBreakRetest.arm_invalidate_buffer_pct:
+    range: {min: 0.0005, max: 0.003, step: 0.0005}
+
+  # Regime gating toggles (strategy-level)
+  LongTermSupportResistanceBreakRetest.allow_risk_off_entries:
+    values: [true, false]
+  LongTermSupportResistanceBreakRetest.use_regime_exit:
+    values: [true, false]
+  LongTermSupportResistanceBreakRetest.require_regime_stability:
+    values: [true, false]
+  LongTermSupportResistanceBreakRetest.avoid_regime_flip:
+    values: [true, false]
+
+  # TrendGate confirmation tuning
+  TrendGate.lookback_days:
+    values: [63, 126, 189]
+  TrendGate.min_relative_return_pct:
+    values: [0.0, 0.02, 0.05]
+  TrendGate.min_rank_percentile:
+    range: {min: 0.55, max: 0.8, step: 0.05}
+  TrendGate.ema_length:
+    values: [20, 50, 100]
+  TrendGate.slope_lookback:
+    values: [10, 20, 30]
+  TrendGate.slope_min:
+    values: [0.0, 0.01, 0.02]
+
+  # AboveEmaState20 confirmation tuning
+  AboveEmaState20.ema_length:
+    values: [20, 30, 50]
+  AboveEmaState20.consecutive_closes:
+    values: [1, 2, 3]
+
+  # Engine-level tuning
+  engine.risk_per_trade_pct:
+    range: {min: 0.0025, max: 0.01, step: 0.0005}
+  engine.max_alloc_pct:
+    range: {min: 0.2, max: 0.6, step: 0.05}
+  engine.regime_stability_days:
+    values: [0, 2, 4, 6, 8]
+  engine.breakeven_r:
+    range: {min: -0.2, max: 1.0, step: 0.1}
+  engine.breakeven_delay_bars:
+    values: [0, 1, 2, 3, 5]
+  engine.allow_risk_off_entries:
+    values: [true, false]
+  engine.risk_off_size_mult:
+    values: [0.25, 0.5, 0.75, 1.0]
+  engine.exit_on_risk_off:
+    values: [true, false]
+  engine.allow_short_risk_on:
+    values: [true, false]
+  engine.allow_short_equity:
+    values: [true, false]
+  engine.portfolio_vol_target:
+    values: [0.08, 0.1, 0.12, 0.14, 0.16]
+  engine.portfolio_vol_lookback:
+    values: [42, 63, 84, 126]
+  engine.regime_flip_band_pct:
+    range: {min: 0.0025, max: 0.02, step: 0.0025}
+  engine.regime_flip_slope_pct:
+    range: {min: 0.0001, max: 0.0019, step: 0.0002}
+
+  # Regime model tuning (optional)
+  engine.regime.params.risk_on_threshold:
+    path: backtest.engine.regime.params.risk_on_threshold
+    range: {min: 0.5, max: 0.7, step: 0.05}
+  engine.regime.params.hysteresis_on:
+    path: backtest.engine.regime.params.hysteresis_on
+    values: [0.6, 0.65, 0.7]
+  engine.regime.params.hysteresis_off:
+    path: backtest.engine.regime.params.hysteresis_off
+    values: [0.5, 0.55, 0.6]
+  engine.regime.params.hedge_max_pct:
+    path: backtest.engine.regime.params.hedge_max_pct
+    range: {min: 0.2, max: 0.6, step: 0.1}
+  engine.regime.params.risk_mult_buckets:
+    path: backtest.engine.regime.params.risk_mult_buckets
+    values:
+      - [{min: 0.8, mult: 1.0}, {min: 0.6, mult: 0.7}, {min: 0.4, mult: 0.4}, {min: 0.0, mult: 0.0}]
+      - [{min: 0.8, mult: 1.0}, {min: 0.6, mult: 0.8}, {min: 0.4, mult: 0.5}, {min: 0.0, mult: 0.0}]
+      - [{min: 0.85, mult: 1.0}, {min: 0.65, mult: 0.7}, {min: 0.45, mult: 0.35}, {min: 0.0, mult: 0.0}]
+  engine.regime.params.apply_exposure_caps:
+    path: backtest.engine.regime.params.apply_exposure_caps
+    values: [false, true]
+
+objectives:
+  - metric: total_return_pct
+    direction: maximize
+    weight: 0.7
+  - metric: sharpe_ratio
+    direction: maximize
+    weight: 0.2
+  - metric: max_drawdown_pct
+    direction: minimize
+    weight: 0.09
+  - metric: turnover_pct
+    direction: minimize
+    weight: 0.01
+
+search:
+  trial_timeout_s: 1000
+  total_trials: 200
+  random_pct: 0.75
+  parallel_workers: 16
+  seed: 42
+  resume: true
+  drawdown_cap_pct: 20.0
+  optuna:
+    enabled: true
+    sampler: tpe
+    n_startup_trials: 0
+    n_jobs: 1
+
+walk_forward:
+  run_id: "2026-01-18_rolling1260_test252_step252"
+  mode: rolling
+  train_days: 1260
+  test_days: 252
+  step_days: 252
+  purge_days: 20
+  embargo_days: 1
+  max_walks: null
+  train_min_days: null
+  train_max_days: null
+  resume_train: true
+  fallback_short_window:
+    enabled: true
+    min_required_days: null
+    train_days: 30
+    test_days: 10
+    step_days: 10
+  constraints:
+    min_trades: null
+    drawdown_cap_pct: 15.0
+    max_turnover_pct: null
+  selection:
+    candidate_pool_size: 20
+    ensemble_size: 3
+    min_param_distance: 0.1
+    corr_threshold: 0.8
+    corr_threshold_step: 0.05
+    corr_threshold_max: 0.9
+    weighting: equal
+    max_weight_mult: 2.0
+  warm_start:
+    enabled: true
+    seed_top_k: 10
+    perturbations_per_seed: 2
+    exploration_pct: 0.75
+    global_bank_max: 100
+  search_overrides:
+    random_pct: 0.75
+    quick_eval:
+      record_pruned: false
+      enabled: false
+      train_fraction: 0.3
+      keep_pct: 0.3
+    optuna:
+      n_startup_trials: 0
+      pruner:
+        type: median
+        n_startup_trials: 10
+        n_warmup_steps: 0
+        interval_steps: 1

@@ -1,0 +1,203 @@
+trial_name: "sma200_rsi_fib_regime"
+base_config: "src/strategy_backtester/config/backtest_sma200_rsi_fib_regime.yaml"
+
+metrics_registry: "src/strategy_grid_search/examples/metrics_registry.yaml"
+
+params:
+  # Core entry filters
+  Sma200RsiOversoldFib.sma_distance_min_pct:
+    range: {min: 0.04, max: 0.12, step: 0.01}
+  Sma200RsiOversoldFib.sma_length:
+    values: [150, 200, 250]
+  Sma200RsiOversoldFib.rsi_length:
+    values: [10, 14, 18]
+  Sma200RsiOversoldFib.rsi_oversold:
+    range: {min: 15.0, max: 25.0, step: 2.5}
+  Sma200RsiOversoldFib.require_rsi_cross:
+    values: [true, false]
+  Sma200RsiOversoldFib.volume_sma_length:
+    values: [10, 20, 30]
+
+  # Fib target construction
+  Sma200RsiOversoldFib.fib_lookback:
+    values: [40, 60, 80, 100]
+  Sma200RsiOversoldFib.fib_levels:
+    values:
+      - [0.236, 0.382, 0.5]
+      - [0.382, 0.5, 0.618]
+      - [0.5, 0.786, 1.0]
+      - [0.618, 0.786, 1.0]
+  Sma200RsiOversoldFib.fib_level_pcts:
+    values: [0.33, 0.5, 0.7]
+  Sma200RsiOversoldFib.fib_min_range_pct:
+    range: {min: 0.0, max: 0.05, step: 0.01}
+  Sma200RsiOversoldFib.take_profit_level_pct_mode:
+    values: ["remaining", "initial"]
+
+  # Stops & exits
+  Sma200RsiOversoldFib.structure_stop_atr_mult:
+    range: {min: 0.1, max: 0.5, step: 0.05}
+  Sma200RsiOversoldFib.percent_stop_pct:
+    range: {min: 0.02, max: 0.08, step: 0.01}
+  Sma200RsiOversoldFib.stop_cooldown_days:
+    values: [5, 10, 15, 20]
+  Sma200RsiOversoldFib.early_failure_exit_enabled:
+    values: [true, false]
+  Sma200RsiOversoldFib.early_failure_bars:
+    values: [3, 5, 7]
+  Sma200RsiOversoldFib.momentum_fail_exit_enabled:
+    values: [true, false]
+  Sma200RsiOversoldFib.momentum_fail_entry_rsi:
+    range: {min: 25.0, max: 35.0, step: 2.5}
+  Sma200RsiOversoldFib.momentum_fail_confirm_rsi:
+    range: {min: 30.0, max: 40.0, step: 2.5}
+  Sma200RsiOversoldFib.momentum_fail_confirm_bars:
+    values: [2, 3, 4, 5]
+  Sma200RsiOversoldFib.atr_contraction_tighten_threshold:
+    range: {min: 0.6, max: 1.0, step: 0.05}
+  Sma200RsiOversoldFib.atr_contraction_lookback:
+    values: [10, 15, 20, 30]
+  Sma200RsiOversoldFib.use_regime_exit:
+    values: [true, false]
+  Sma200RsiOversoldFib.require_regime_filter:
+    values: [true, false]
+  Sma200RsiOversoldFib.strategy_max_position_pct:
+    range: {min: 0.05, max: 0.5, step: 0.05}
+
+  # Engine-level tuning
+  engine.risk_per_trade_pct:
+    range: {min: 0.0025, max: 0.1, step: 0.0025}
+  engine.max_alloc_pct:
+    range: {min: 0.2, max: 0.9, step: 0.05}
+  engine.regime_stability_days:
+    values: [0, 2, 4, 6, 8]
+  engine.breakeven_r:
+    range: {min: -0.2, max: 1.0, step: 0.1}
+  engine.breakeven_delay_bars:
+    values: [0, 1, 2, 3, 5]
+  engine.min_avg_volume_futures:
+    values: [0, 500, 1000, 2000, 5000]
+  engine.allow_risk_off_entries:
+    values: [true, false]
+  engine.risk_off_size_mult:
+    values: [0.25, 0.5, 0.75, 1.0]
+  engine.exit_on_risk_off:
+    values: [true, false]
+  engine.allow_short_risk_on:
+    values: [true, false]
+  engine.allow_short_equity:
+    values: [true, false]
+  engine.portfolio_vol_target:
+    values: [0.06, 0.08, 0.1, 0.12, 0.14, 0.16, 0.18]
+  engine.portfolio_vol_lookback:
+    values: [42, 63, 84, 126]
+  engine.regime_flip_band_pct:
+    range: {min: 0.0025, max: 0.02, step: 0.0025}
+  engine.regime_flip_slope_pct:
+    range: {min: 0.0001, max: 0.0019, step: 0.0002}
+
+  # Regime model tuning
+  engine.regime.params.risk_on_threshold:
+    path: backtest.engine.regime.params.risk_on_threshold
+    range: {min: 0.5, max: 0.7, step: 0.05}
+  engine.regime.params.hysteresis_on:
+    path: backtest.engine.regime.params.hysteresis_on
+    values: [0.6, 0.65, 0.7]
+  engine.regime.params.hysteresis_off:
+    path: backtest.engine.regime.params.hysteresis_off
+    values: [0.5, 0.55, 0.6]
+  engine.regime.params.hedge_max_pct:
+    path: backtest.engine.regime.params.hedge_max_pct
+    range: {min: 0.2, max: 0.6, step: 0.1}
+  engine.regime.params.risk_mult_buckets:
+    path: backtest.engine.regime.params.risk_mult_buckets
+    values:
+      - [{min: 0.8, mult: 1.0}, {min: 0.6, mult: 0.7}, {min: 0.4, mult: 0.4}, {min: 0.0, mult: 0.0}]
+      - [{min: 0.8, mult: 1.0}, {min: 0.6, mult: 0.8}, {min: 0.4, mult: 0.5}, {min: 0.0, mult: 0.0}]
+      - [{min: 0.85, mult: 1.0}, {min: 0.65, mult: 0.7}, {min: 0.45, mult: 0.35}, {min: 0.0, mult: 0.0}]
+  engine.regime.params.apply_exposure_caps:
+    path: backtest.engine.regime.params.apply_exposure_caps
+    values: [false, true]
+
+objectives:
+  - metric: total_return_pct
+    direction: maximize
+    weight: 0.7
+  - metric: sharpe_ratio
+    direction: maximize
+    weight: 0.2
+  - metric: max_drawdown_pct
+    direction: minimize
+    weight: 0.09
+  - metric: turnover_pct
+    direction: minimize
+    weight: 0.01
+
+search:
+  total_trials: 200
+  random_pct: 0.75
+  parallel_workers: 16
+  seed: 42
+  resume: true
+  drawdown_cap_pct: 500.0
+  optuna:
+    enabled: true
+    sampler: tpe
+    n_startup_trials: 0
+    n_jobs: 1
+
+walk_forward:
+  run_id: "2026-01-17_213858_rolling1260_test252_step252"
+  mode: rolling
+  train_days: 1260
+  test_days: 252
+  step_days: 252
+  purge_days: 20
+  embargo_days: 1
+  max_walks: null
+  train_min_days: null
+  train_max_days: null
+  resume_train: true
+  fallback_short_window:
+    enabled: true
+    min_required_days: null
+    train_days: 30
+    test_days: 10
+    step_days: 10
+  constraints:
+    min_trades: null
+    drawdown_cap_pct: 15.0
+    max_turnover_pct: null
+  selection:
+    candidate_pool_size: 20
+    ensemble_size: 3
+    min_param_distance: 0.1
+    corr_threshold: 0.8
+    corr_threshold_step: 0.05
+    corr_threshold_max: 0.9
+    weighting: equal
+    max_weight_mult: 2.0
+  warm_start:
+    enabled: true
+    seed_top_k: 10
+    perturbations_per_seed: 2
+    exploration_pct: 0.75
+    global_bank_max: 100
+  search_overrides:
+    random_pct: 0.75
+    quick_eval:
+      record_pruned: false
+      enabled: false
+      train_fraction: 0.3
+      keep_pct: 0.3
+    optuna:
+      n_startup_trials: 0
+      pruner:
+        type: median
+        n_startup_trials: 10
+        n_warmup_steps: 0
+        interval_steps: 1
+
+output:
+  save_runs: false
+  top_n: 30

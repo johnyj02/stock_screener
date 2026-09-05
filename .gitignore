@@ -1,0 +1,32 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Local configuration
+.env
+.env.*
+!.env.example
+.idea/
+.vscode/
+*.log
+
+# Downloaded data, caches, and generated output
+.cache/
+.cache_ibkr/
+data/kaggle/
+results/
+src/stock_screener.zip
+
+# Frontend dependencies and builds
+node_modules/
+dist/
+
+# OS metadata
+.DS_Store
+Thumbs.db

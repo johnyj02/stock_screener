@@ -1,0 +1,34 @@
+total_return_pct:
+  source: total_return_pct
+  description: Total return percent.
+  direction: maximize
+
+sharpe_ratio:
+  source: sharpe_ratio
+  description: Annualized Sharpe ratio.
+  direction: maximize
+
+turnover_pct:
+  source: turnover_pct
+  description: Portfolio turnover percent.
+  direction: minimize
+
+turnover_margin_pct:
+  source: turnover_margin_pct
+  description: Portfolio turnover percent using margin-adjusted notional for futures.
+  direction: minimize
+
+turnover_annualized_pct:
+  source: turnover_annualized_pct
+  description: Annualized portfolio turnover percent (gross notional).
+  direction: minimize
+
+turnover_margin_annualized_pct:
+  source: turnover_margin_annualized_pct
+  description: Annualized portfolio turnover percent using margin-adjusted notional.
+  direction: minimize
+
+max_drawdown_pct:
+  source: max_drawdown_pct
+  description: Maximum drawdown percent.
+  direction: minimize

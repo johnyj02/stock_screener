@@ -1,0 +1,294 @@
+trial_name: "lmr_vtx_stack"
+base_config: "src/strategy_backtester/config/backtest_lmr_vtx_stack.yaml"
+
+metrics_registry: "src/strategy_grid_search/examples/metrics_registry.yaml"
+
+params:
+  # Sma200RsiOversoldFib (long mean-reversion)
+  Sma200RsiOversoldFib.sma_distance_min_pct:
+    range: {min: 0.04, max: 0.12, step: 0.01}
+  Sma200RsiOversoldFib.sma_length:
+    values: [150, 200, 250]
+  Sma200RsiOversoldFib.volume_sma_length:
+    values: [10, 20, 30]
+  Sma200RsiOversoldFib.rsi_length:
+    values: [10, 14, 18]
+  Sma200RsiOversoldFib.rsi_oversold:
+    range: {min: 20.0, max: 30.0, step: 2.5}
+  Sma200RsiOversoldFib.rsi_overbought:
+    values: [65.0, 70.0, 75.0]
+  Sma200RsiOversoldFib.require_rsi_cross:
+    values: [true, false]
+  Sma200RsiOversoldFib.sma_exit_buffer_pct:
+    range: {min: 0.0, max: 0.03, step: 0.01}
+  Sma200RsiOversoldFib.fib_lookback:
+    values: [40, 60, 80, 100]
+  Sma200RsiOversoldFib.fib_levels:
+    values:
+      - [0.236, 0.382, 0.5]
+      - [0.382, 0.5, 0.618]
+      - [0.5, 0.786, 1.0]
+  Sma200RsiOversoldFib.fib_level_pcts:
+    values: [0.33, 0.5, 0.7]
+  Sma200RsiOversoldFib.fib_min_range_pct:
+    range: {min: 0.0, max: 0.05, step: 0.01}
+  Sma200RsiOversoldFib.take_profit_level_pct_mode:
+    values: ["remaining", "initial"]
+  Sma200RsiOversoldFib.structure_stop_atr_mult:
+    range: {min: 0.1, max: 0.5, step: 0.05}
+  Sma200RsiOversoldFib.percent_stop_pct:
+    range: {min: 0.02, max: 0.08, step: 0.01}
+  Sma200RsiOversoldFib.stop_cooldown_days:
+    values: [5, 10, 15, 20]
+  Sma200RsiOversoldFib.early_failure_exit_enabled:
+    values: [true, false]
+  Sma200RsiOversoldFib.early_failure_bars:
+    values: [3, 5, 7]
+  Sma200RsiOversoldFib.early_failure_requires_close_below_entry:
+    values: [true, false]
+  Sma200RsiOversoldFib.atr_contraction_tighten_enabled:
+    values: [true, false]
+  Sma200RsiOversoldFib.atr_contraction_tighten_threshold:
+    range: {min: 0.6, max: 1.0, step: 0.05}
+  Sma200RsiOversoldFib.atr_contraction_lookback:
+    values: [10, 15, 20, 30]
+  Sma200RsiOversoldFib.momentum_fail_exit_enabled:
+    values: [true, false]
+  Sma200RsiOversoldFib.momentum_fail_entry_rsi:
+    range: {min: 25.0, max: 35.0, step: 2.5}
+  Sma200RsiOversoldFib.momentum_fail_confirm_rsi:
+    range: {min: 30.0, max: 45.0, step: 2.5}
+  Sma200RsiOversoldFib.momentum_fail_confirm_bars:
+    values: [2, 3, 4, 5]
+  Sma200RsiOversoldFib.momentum_fail_rsi_length:
+    values: [10, 14, 20]
+  Sma200RsiOversoldFib.require_regime_filter:
+    values: [true, false]
+  Sma200RsiOversoldFib.use_regime_exit:
+    values: [true, false]
+  Sma200RsiOversoldFib.time_stop_days:
+    values: [null, 10, 20, 30]
+  Sma200RsiOversoldFib.strategy_max_position_pct:
+    range: {min: 0.05, max: 0.5, step: 0.05}
+
+  # VTX-BRK (VtxBreakdown short volatility breakdown)
+  VTX-BRK.sma_length:
+    path: strategies[VTX-BRK].args.sma_length
+    values: [150, 200, 250]
+  VTX-BRK.sma_entry_buffer_pct:
+    path: strategies[VTX-BRK].args.sma_entry_buffer_pct
+    range: {min: 0.0, max: 0.04, step: 0.01}
+  VTX-BRK.atr_length:
+    path: strategies[VTX-BRK].args.atr_length
+    values: [14, 20, 30]
+  VTX-BRK.atr_expand_lookback:
+    path: strategies[VTX-BRK].args.atr_expand_lookback
+    values: [3, 5, 8]
+  VTX-BRK.breakdown_lookback:
+    path: strategies[VTX-BRK].args.breakdown_lookback
+    values: [10, 15, 20, 30]
+  VTX-BRK.breakdown_buffer_pct:
+    path: strategies[VTX-BRK].args.breakdown_buffer_pct
+    range: {min: 0.02, max: 0.08, step: 0.01}
+  VTX-BRK.fib_lookback:
+    path: strategies[VTX-BRK].args.fib_lookback
+    values: [40, 60, 80, 100]
+  VTX-BRK.fib_levels:
+    path: strategies[VTX-BRK].args.fib_levels
+    values:
+      - [0.236, 0.382, 0.5]
+      - [0.382, 0.5, 0.618]
+      - [0.5, 0.786, 1.0]
+  VTX-BRK.fib_level_pcts:
+    path: strategies[VTX-BRK].args.fib_level_pcts
+    values: [0.33, 0.5, 0.7]
+  VTX-BRK.fib_min_range_pct:
+    path: strategies[VTX-BRK].args.fib_min_range_pct
+    range: {min: 0.0, max: 0.05, step: 0.01}
+  VTX-BRK.fib_take_profit_enabled:
+    path: strategies[VTX-BRK].args.fib_take_profit_enabled
+    values: [true, false]
+  VTX-BRK.take_profit_level_pct_mode:
+    path: strategies[VTX-BRK].args.take_profit_level_pct_mode
+    values: ["remaining", "initial"]
+  VTX-BRK.partial_take_profit_enabled:
+    path: strategies[VTX-BRK].args.partial_take_profit_enabled
+    values: [true, false]
+  VTX-BRK.partial_take_profit_r:
+    path: strategies[VTX-BRK].args.partial_take_profit_r
+    values: [0.5, 1.0, 1.5]
+  VTX-BRK.partial_take_profit_pct:
+    path: strategies[VTX-BRK].args.partial_take_profit_pct
+    values: [0.3, 0.5, 0.7]
+  VTX-BRK.trailing_enabled:
+    path: strategies[VTX-BRK].args.trailing_enabled
+    values: [true, false]
+  VTX-BRK.trailing_start_r:
+    path: strategies[VTX-BRK].args.trailing_start_r
+    values: [0.5, 1.0, 1.5, 2.0]
+  VTX-BRK.trailing_use_ema20:
+    path: strategies[VTX-BRK].args.trailing_use_ema20
+    values: [true, false]
+  VTX-BRK.trailing_ema_length:
+    path: strategies[VTX-BRK].args.trailing_ema_length
+    values: [10, 20, 30, 50]
+  VTX-BRK.trailing_method:
+    path: strategies[VTX-BRK].args.trailing_method
+    values: ["min", "max"]
+  VTX-BRK.trailing_atr_mult:
+    path: strategies[VTX-BRK].args.trailing_atr_mult
+    range: {min: 0.5, max: 2.0, step: 0.25}
+  VTX-BRK.exit_on_regime_flip:
+    path: strategies[VTX-BRK].args.exit_on_regime_flip
+    values: [true, false]
+  VTX-BRK.exit_on_vol_collapse:
+    path: strategies[VTX-BRK].args.exit_on_vol_collapse
+    values: [true, false]
+  VTX-BRK.require_regime_filter:
+    path: strategies[VTX-BRK].args.require_regime_filter
+    values: [true, false]
+  VTX-BRK.time_stop_days:
+    path: strategies[VTX-BRK].args.time_stop_days
+    values: [null, 10, 20, 30]
+  VTX-BRK.stop_multiplier:
+    path: strategies[VTX-BRK].args.stop_multiplier
+    range: {min: 1.0, max: 3.0, step: 0.5}
+  VTX-BRK.strategy_max_position_pct:
+    path: strategies[VTX-BRK].args.strategy_max_position_pct
+    range: {min: 0.05, max: 0.5, step: 0.05}
+
+  # Engine-level tuning
+  engine.risk_per_trade_pct:
+    range: {min: 0.0025, max: 0.1, step: 0.0025}
+  engine.max_alloc_pct:
+    range: {min: 0.2, max: 0.9, step: 0.05}
+  engine.regime_stability_days:
+    values: [0, 2, 4, 6, 8]
+  engine.breakeven_r:
+    range: {min: -0.2, max: 1.0, step: 0.1}
+  engine.breakeven_delay_bars:
+    values: [0, 1, 2, 3, 5]
+  engine.min_avg_volume_futures:
+    values: [0, 500, 1000, 2000, 5000]
+  engine.allow_risk_off_entries:
+    values: [true, false]
+  engine.risk_off_size_mult:
+    values: [0.25, 0.5, 0.75, 1.0]
+  engine.exit_on_risk_off:
+    values: [true, false]
+  engine.allow_short_risk_on:
+    values: [true, false]
+  engine.allow_short_equity:
+    values: [true, false]
+  engine.portfolio_vol_target:
+    values: [0.06, 0.08, 0.1, 0.12, 0.14, 0.16, 0.18]
+  engine.portfolio_vol_lookback:
+    values: [42, 63, 84, 126]
+  engine.regime_flip_band_pct:
+    range: {min: 0.0025, max: 0.02, step: 0.0025}
+  engine.regime_flip_slope_pct:
+    range: {min: 0.0001, max: 0.0019, step: 0.0002}
+
+  # Regime model tuning
+  engine.regime.params.risk_on_threshold:
+    path: backtest.engine.regime.params.risk_on_threshold
+    range: {min: 0.5, max: 0.7, step: 0.05}
+  engine.regime.params.hysteresis_on:
+    path: backtest.engine.regime.params.hysteresis_on
+    values: [0.6, 0.65, 0.7]
+  engine.regime.params.hysteresis_off:
+    path: backtest.engine.regime.params.hysteresis_off
+    values: [0.5, 0.55, 0.6]
+  engine.regime.params.hedge_max_pct:
+    path: backtest.engine.regime.params.hedge_max_pct
+    range: {min: 0.2, max: 0.6, step: 0.1}
+  engine.regime.params.risk_mult_buckets:
+    path: backtest.engine.regime.params.risk_mult_buckets
+    values:
+      - [{min: 0.8, mult: 1.0}, {min: 0.6, mult: 0.7}, {min: 0.4, mult: 0.4}, {min: 0.0, mult: 0.0}]
+      - [{min: 0.8, mult: 1.0}, {min: 0.6, mult: 0.8}, {min: 0.4, mult: 0.5}, {min: 0.0, mult: 0.0}]
+      - [{min: 0.85, mult: 1.0}, {min: 0.65, mult: 0.7}, {min: 0.45, mult: 0.35}, {min: 0.0, mult: 0.0}]
+  engine.regime.params.apply_exposure_caps:
+    path: backtest.engine.regime.params.apply_exposure_caps
+    values: [false, true]
+
+objectives:
+  - metric: total_return_pct
+    direction: maximize
+    weight: 0.7
+  - metric: sharpe_ratio
+    direction: maximize
+    weight: 0.2
+  - metric: max_drawdown_pct
+    direction: minimize
+    weight: 0.09
+  - metric: turnover_pct
+    direction: minimize
+    weight: 0.01
+
+search:
+  total_trials: 600
+  random_pct: 0.75
+  parallel_workers: 20
+  seed: 42
+  resume: true
+  drawdown_cap_pct: 15.0
+  optuna:
+    enabled: true
+    sampler: tpe
+    n_startup_trials: 0
+    n_jobs: 1
+
+walk_forward:
+  mode: rolling
+  train_days: 252
+  test_days: 21
+  step_days: 42
+  purge_days: 20
+  embargo_days: 1
+  max_walks: null
+  train_min_days: null
+  train_max_days: null
+  resume_train: false
+  fallback_short_window:
+    enabled: true
+    min_required_days: null
+    train_days: 30
+    test_days: 10
+    step_days: 10
+  constraints:
+    min_trades: null
+    drawdown_cap_pct: 15.0
+    max_turnover_pct: null
+  selection:
+    candidate_pool_size: 50
+    ensemble_size: 5
+    min_param_distance: 0.1
+    corr_threshold: 0.8
+    corr_threshold_step: 0.05
+    corr_threshold_max: 0.9
+    weighting: equal
+    max_weight_mult: 2.0
+  warm_start:
+    enabled: true
+    seed_top_k: 20
+    perturbations_per_seed: 2
+    exploration_pct: 0.75
+    global_bank_max: 100
+  search_overrides:
+    random_pct: 0.75
+    quick_eval:
+      enabled: true
+      train_fraction: 0.3
+      keep_pct: 0.3
+    optuna:
+      n_startup_trials: 0
+      pruner:
+        type: median
+        n_startup_trials: 10
+        n_warmup_steps: 0
+        interval_steps: 1
+
+output:
+  save_runs: false
+  top_n: 30

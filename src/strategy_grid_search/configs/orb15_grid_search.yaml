@@ -1,0 +1,337 @@
+trial_name: "orb15"
+base_config: "src/strategy_backtester/config/backtest_orb15.yaml"
+
+metrics_registry: "src/strategy_grid_search/examples/metrics_registry.yaml"
+
+params:
+  # ORB range + targets (ATR-aware)
+  Orb15BreakoutLong.orb_range.orb_min_range_points:
+    path: strategies[Orb15BreakoutLong].args.orb_range.orb_min_range_points
+    range: {min: 4.0, max: 30.0, step: 1.0}
+  Orb15BreakoutShort.orb_range.orb_min_range_points:
+    path: strategies[Orb15BreakoutShort].args.orb_range.orb_min_range_points
+    range: {min: 4.0, max: 30.0, step: 1.0}
+  Orb15BreakoutLong.orb_range.orb_max_range_points:
+    path: strategies[Orb15BreakoutLong].args.orb_range.orb_max_range_points
+    range: {min: 15.0, max: 60.0, step: 5.0}
+  Orb15BreakoutShort.orb_range.orb_max_range_points:
+    path: strategies[Orb15BreakoutShort].args.orb_range.orb_max_range_points
+    range: {min: 15.0, max: 60.0, step: 5.0}
+  Orb15BreakoutLong.orb_range.orb_max_range_atr_pct:
+    path: strategies[Orb15BreakoutLong].args.orb_range.orb_max_range_atr_pct
+    values: [null, 0.4, 0.5, 0.6, 0.7, 0.8]
+  Orb15BreakoutShort.orb_range.orb_max_range_atr_pct:
+    path: strategies[Orb15BreakoutShort].args.orb_range.orb_max_range_atr_pct
+    values: [null, 0.4, 0.5, 0.6, 0.7, 0.8]
+  Orb15BreakoutLong.tp_r_multiple:
+    range: {min: 1.5, max: 3.5, step: 0.25}
+  Orb15BreakoutShort.tp_r_multiple:
+    range: {min: 1.5, max: 3.5, step: 0.25}
+  Orb15BreakoutLong.entry_cutoff_time:
+    values: ["10:30", "11:00", "11:30"]
+  Orb15BreakoutShort.entry_cutoff_time:
+    values: ["10:30", "11:00", "11:30"]
+  Orb15BreakoutLong.exit_cutoff_time:
+    values: ["14:30", "15:00", "15:30", "15:55"]
+  Orb15BreakoutShort.exit_cutoff_time:
+    values: ["14:30", "15:00", "15:30", "15:55"]
+  Orb15BreakoutLong.orb_allow_flip_on_stop:
+    values: [true, false]
+  Orb15BreakoutShort.orb_allow_flip_on_stop:
+    values: [true, false]
+  Orb15BreakoutLong.vwap_entry_filter_enabled:
+    values: [true]
+  Orb15BreakoutShort.vwap_entry_filter_enabled:
+    values: [true]
+  Orb15BreakoutLong.vwap_orb_levels_filter_enabled:
+    values: [true, false]
+  Orb15BreakoutShort.vwap_orb_levels_filter_enabled:
+    values: [true, false]
+  Orb15BreakoutLong.strategy_max_position_pct:
+    range: {min: 0.1, max: 0.6, step: 0.05}
+  Orb15BreakoutShort.strategy_max_position_pct:
+    range: {min: 0.1, max: 0.6, step: 0.05}
+
+  # Regime gating
+  Orb15BreakoutLong.regime_gating.enabled:
+    path: strategies[Orb15BreakoutLong].args.regime_gating.enabled
+    values: [true, false]
+  Orb15BreakoutShort.regime_gating.enabled:
+    path: strategies[Orb15BreakoutShort].args.regime_gating.enabled
+    values: [true, false]
+  Orb15BreakoutLong.regime_gating.mode:
+    path: strategies[Orb15BreakoutLong].args.regime_gating.mode
+    values: ["OR", "AND"]
+  Orb15BreakoutShort.regime_gating.mode:
+    path: strategies[Orb15BreakoutShort].args.regime_gating.mode
+    values: ["OR", "AND"]
+  Orb15BreakoutLong.regime_gating.gates.atr_expansion_15m.enabled:
+    path: strategies[Orb15BreakoutLong].args.regime_gating.gates.atr_expansion_15m.enabled
+    values: [true, false]
+  Orb15BreakoutShort.regime_gating.gates.atr_expansion_15m.enabled:
+    path: strategies[Orb15BreakoutShort].args.regime_gating.gates.atr_expansion_15m.enabled
+    values: [true, false]
+  Orb15BreakoutLong.regime_gating.gates.atr_expansion_15m.lookback_days:
+    path: strategies[Orb15BreakoutLong].args.regime_gating.gates.atr_expansion_15m.lookback_days
+    range: {min: 20, max: 120, step: 10}
+  Orb15BreakoutShort.regime_gating.gates.atr_expansion_15m.lookback_days:
+    path: strategies[Orb15BreakoutShort].args.regime_gating.gates.atr_expansion_15m.lookback_days
+    range: {min: 20, max: 120, step: 10}
+  Orb15BreakoutLong.regime_gating.gates.mkt_risk_on.enabled:
+    path: strategies[Orb15BreakoutLong].args.regime_gating.gates.mkt_risk_on.enabled
+    values: [true, false]
+  Orb15BreakoutShort.regime_gating.gates.mkt_risk_on.enabled:
+    path: strategies[Orb15BreakoutShort].args.regime_gating.gates.mkt_risk_on.enabled
+    values: [true, false]
+  Orb15BreakoutLong.regime_gating.gates.mkt_trend_ok.enabled:
+    path: strategies[Orb15BreakoutLong].args.regime_gating.gates.mkt_trend_ok.enabled
+    values: [true, false]
+  Orb15BreakoutShort.regime_gating.gates.mkt_trend_ok.enabled:
+    path: strategies[Orb15BreakoutShort].args.regime_gating.gates.mkt_trend_ok.enabled
+    values: [true, false]
+
+  # Conditional trade count
+  Orb15BreakoutLong.trade_count.max_trades_per_day:
+    path: strategies[Orb15BreakoutLong].args.trade_count.max_trades_per_day
+    values: [1, 2, 5, 10]
+  Orb15BreakoutShort.trade_count.max_trades_per_day:
+    path: strategies[Orb15BreakoutShort].args.trade_count.max_trades_per_day
+    values: [1, 2, 5, 10]
+  Orb15BreakoutLong.trade_count.allow_second_trade_if_first_mfe_r_ge:
+    path: strategies[Orb15BreakoutLong].args.trade_count.allow_second_trade_if_first_mfe_r_ge
+    range: {min: 0.25, max: 1.0, step: 0.05}
+  Orb15BreakoutShort.trade_count.allow_second_trade_if_first_mfe_r_ge:
+    path: strategies[Orb15BreakoutShort].args.trade_count.allow_second_trade_if_first_mfe_r_ge
+    range: {min: 0.25, max: 1.0, step: 0.05}
+  Orb15BreakoutLong.trade_count.block_second_trade_if_first_exit_r_le:
+    path: strategies[Orb15BreakoutLong].args.trade_count.block_second_trade_if_first_exit_r_le
+    range: {min: -1.5, max: -0.5, step: 0.25}
+  Orb15BreakoutShort.trade_count.block_second_trade_if_first_exit_r_le:
+    path: strategies[Orb15BreakoutShort].args.trade_count.block_second_trade_if_first_exit_r_le
+    range: {min: -1.5, max: -0.5, step: 0.25}
+  Orb15BreakoutLong.trade_count.allow_second_trade_if_trend_gate_true:
+    path: strategies[Orb15BreakoutLong].args.trade_count.allow_second_trade_if_trend_gate_true
+    values: [true, false]
+  Orb15BreakoutShort.trade_count.allow_second_trade_if_trend_gate_true:
+    path: strategies[Orb15BreakoutShort].args.trade_count.allow_second_trade_if_trend_gate_true
+    values: [true, false]
+
+  Orb15BreakoutLong.tp_management.buckets.lt_2.breakeven_trigger_r:
+    path: strategies[Orb15BreakoutLong].args.tp_management.buckets.lt_2.breakeven_trigger_r
+    range: {min: 0.5, max: 1.0, step: 0.05}
+  Orb15BreakoutShort.tp_management.buckets.lt_2.breakeven_trigger_r:
+    path: strategies[Orb15BreakoutShort].args.tp_management.buckets.lt_2.breakeven_trigger_r
+    range: {min: 0.5, max: 1.0, step: 0.05}
+  Orb15BreakoutLong.tp_management.buckets.lt_2.breakeven_delay_bars:
+    path: strategies[Orb15BreakoutLong].args.tp_management.buckets.lt_2.breakeven_delay_bars
+    values: [0, 1, 2]
+  Orb15BreakoutShort.tp_management.buckets.lt_2.breakeven_delay_bars:
+    path: strategies[Orb15BreakoutShort].args.tp_management.buckets.lt_2.breakeven_delay_bars
+    values: [0, 1, 2]
+  Orb15BreakoutLong.tp_management.buckets.lt_2.breakeven_buffer_r:
+    path: strategies[Orb15BreakoutLong].args.tp_management.buckets.lt_2.breakeven_buffer_r
+    range: {min: -0.2, max: 0.0, step: 0.05}
+  Orb15BreakoutShort.tp_management.buckets.lt_2.breakeven_buffer_r:
+    path: strategies[Orb15BreakoutShort].args.tp_management.buckets.lt_2.breakeven_buffer_r
+    range: {min: -0.2, max: 0.0, step: 0.05}
+  Orb15BreakoutLong.tp_management.buckets.lt_2.exit_cutoff_shift_minutes:
+    path: strategies[Orb15BreakoutLong].args.tp_management.buckets.lt_2.exit_cutoff_shift_minutes
+    values: [-30, -15, 0, 15, 30]
+  Orb15BreakoutShort.tp_management.buckets.lt_2.exit_cutoff_shift_minutes:
+    path: strategies[Orb15BreakoutShort].args.tp_management.buckets.lt_2.exit_cutoff_shift_minutes
+    values: [-30, -15, 0, 15, 30]
+
+  Orb15BreakoutLong.tp_management.buckets.gte_2_lt_2_5.breakeven_trigger_r:
+    path: strategies[Orb15BreakoutLong].args.tp_management.buckets.gte_2_lt_2_5.breakeven_trigger_r
+    range: {min: 0.75, max: 1.25, step: 0.05}
+  Orb15BreakoutShort.tp_management.buckets.gte_2_lt_2_5.breakeven_trigger_r:
+    path: strategies[Orb15BreakoutShort].args.tp_management.buckets.gte_2_lt_2_5.breakeven_trigger_r
+    range: {min: 0.75, max: 1.25, step: 0.05}
+  Orb15BreakoutLong.tp_management.buckets.gte_2_lt_2_5.breakeven_delay_bars:
+    path: strategies[Orb15BreakoutLong].args.tp_management.buckets.gte_2_lt_2_5.breakeven_delay_bars
+    values: [0, 1, 2, 3]
+  Orb15BreakoutShort.tp_management.buckets.gte_2_lt_2_5.breakeven_delay_bars:
+    path: strategies[Orb15BreakoutShort].args.tp_management.buckets.gte_2_lt_2_5.breakeven_delay_bars
+    values: [0, 1, 2, 3]
+  Orb15BreakoutLong.tp_management.buckets.gte_2_lt_2_5.breakeven_buffer_r:
+    path: strategies[Orb15BreakoutLong].args.tp_management.buckets.gte_2_lt_2_5.breakeven_buffer_r
+    range: {min: -0.2, max: 0.0, step: 0.05}
+  Orb15BreakoutShort.tp_management.buckets.gte_2_lt_2_5.breakeven_buffer_r:
+    path: strategies[Orb15BreakoutShort].args.tp_management.buckets.gte_2_lt_2_5.breakeven_buffer_r
+    range: {min: -0.2, max: 0.0, step: 0.05}
+  Orb15BreakoutLong.tp_management.buckets.gte_2_lt_2_5.exit_cutoff_shift_minutes:
+    path: strategies[Orb15BreakoutLong].args.tp_management.buckets.gte_2_lt_2_5.exit_cutoff_shift_minutes
+    values: [-30, -15, 0, 15, 30]
+  Orb15BreakoutShort.tp_management.buckets.gte_2_lt_2_5.exit_cutoff_shift_minutes:
+    path: strategies[Orb15BreakoutShort].args.tp_management.buckets.gte_2_lt_2_5.exit_cutoff_shift_minutes
+    values: [-30, -15, 0, 15, 30]
+
+  Orb15BreakoutLong.tp_management.buckets.gte_2_5.breakeven_trigger_r:
+    path: strategies[Orb15BreakoutLong].args.tp_management.buckets.gte_2_5.breakeven_trigger_r
+    range: {min: 1.0, max: 1.5, step: 0.05}
+  Orb15BreakoutShort.tp_management.buckets.gte_2_5.breakeven_trigger_r:
+    path: strategies[Orb15BreakoutShort].args.tp_management.buckets.gte_2_5.breakeven_trigger_r
+    range: {min: 1.0, max: 1.5, step: 0.05}
+  Orb15BreakoutLong.tp_management.buckets.gte_2_5.breakeven_delay_bars:
+    path: strategies[Orb15BreakoutLong].args.tp_management.buckets.gte_2_5.breakeven_delay_bars
+    values: [1, 2, 3]
+  Orb15BreakoutShort.tp_management.buckets.gte_2_5.breakeven_delay_bars:
+    path: strategies[Orb15BreakoutShort].args.tp_management.buckets.gte_2_5.breakeven_delay_bars
+    values: [1, 2, 3]
+  Orb15BreakoutLong.tp_management.buckets.gte_2_5.breakeven_buffer_r:
+    path: strategies[Orb15BreakoutLong].args.tp_management.buckets.gte_2_5.breakeven_buffer_r
+    range: {min: -0.2, max: 0.0, step: 0.05}
+  Orb15BreakoutShort.tp_management.buckets.gte_2_5.breakeven_buffer_r:
+    path: strategies[Orb15BreakoutShort].args.tp_management.buckets.gte_2_5.breakeven_buffer_r
+    range: {min: -0.2, max: 0.0, step: 0.05}
+  Orb15BreakoutLong.tp_management.buckets.gte_2_5.exit_cutoff_shift_minutes:
+    path: strategies[Orb15BreakoutLong].args.tp_management.buckets.gte_2_5.exit_cutoff_shift_minutes
+    values: [0, 15, 30, 45]
+  Orb15BreakoutShort.tp_management.buckets.gte_2_5.exit_cutoff_shift_minutes:
+    path: strategies[Orb15BreakoutShort].args.tp_management.buckets.gte_2_5.exit_cutoff_shift_minutes
+    values: [0, 15, 30, 45]
+  Orb15BreakoutLong.tp_management.buckets.gte_2_5.exit_cutoff_cap_time:
+    path: strategies[Orb15BreakoutLong].args.tp_management.buckets.gte_2_5.exit_cutoff_cap_time
+    values: ["15:30", "15:45", "15:55"]
+  Orb15BreakoutShort.tp_management.buckets.gte_2_5.exit_cutoff_cap_time:
+    path: strategies[Orb15BreakoutShort].args.tp_management.buckets.gte_2_5.exit_cutoff_cap_time
+    values: ["15:30", "15:45", "15:55"]
+
+  # Engine-level tuning
+  engine.risk_per_trade_pct:
+    range: {min: 0.0025, max: 0.01, step: 0.0005}
+  engine.max_alloc_pct:
+    range: {min: 0.4, max: 0.9, step: 0.05}
+  engine.regime_stability_days:
+    values: [0, 2, 4, 6, 8]
+  engine.breakeven_r:
+    range: {min: -0.2, max: 1.0, step: 0.1}
+  engine.breakeven_delay_bars:
+    values: [0, 1, 2, 3, 5]
+  engine.min_avg_volume_futures:
+    values: [0, 200]
+  engine.allow_risk_off_entries:
+    values: [true, false]
+  engine.risk_off_size_mult:
+    values: [0.25, 0.5, 0.75, 1.0]
+  engine.exit_on_risk_off:
+    values: [true, false]
+  engine.allow_short_risk_on:
+    values: [true, false]
+  engine.allow_short_equity:
+    values: [true, false]
+  engine.portfolio_vol_target:
+    values: [0.06, 0.08, 0.1, 0.12, 0.14, 0.16, 0.18]
+  engine.portfolio_vol_lookback:
+    values: [42, 63, 84, 126]
+  engine.regime_flip_band_pct:
+    range: {min: 0.0025, max: 0.02, step: 0.0025}
+  engine.regime_flip_slope_pct:
+    range: {min: 0.0001, max: 0.01, step: 0.0002}
+
+  # Regime model tuning
+  engine.regime.params.risk_on_threshold:
+    path: backtest.engine.regime.params.risk_on_threshold
+    range: {min: 0.5, max: 0.7, step: 0.05}
+  engine.regime.params.hysteresis_on:
+    path: backtest.engine.regime.params.hysteresis_on
+    values: [0.6, 0.65, 0.7]
+  engine.regime.params.hysteresis_off:
+    path: backtest.engine.regime.params.hysteresis_off
+    values: [0.5, 0.55, 0.6]
+  engine.regime.params.hedge_max_pct:
+    path: backtest.engine.regime.params.hedge_max_pct
+    range: {min: 0.2, max: 0.6, step: 0.1}
+  engine.regime.params.risk_mult_buckets:
+    path: backtest.engine.regime.params.risk_mult_buckets
+    values:
+      - [{min: 0.8, mult: 1.0}, {min: 0.6, mult: 0.7}, {min: 0.4, mult: 0.4}, {min: 0.0, mult: 0.0}]
+      - [{min: 0.8, mult: 1.0}, {min: 0.6, mult: 0.8}, {min: 0.4, mult: 0.5}, {min: 0.0, mult: 0.0}]
+      - [{min: 0.85, mult: 1.0}, {min: 0.65, mult: 0.7}, {min: 0.45, mult: 0.35}, {min: 0.0, mult: 0.0}]
+  engine.regime.params.apply_exposure_caps:
+    path: backtest.engine.regime.params.apply_exposure_caps
+    values: [false, true]
+
+objectives:
+  - metric: annualized_return_pct
+    direction: maximize
+    weight: 0.20
+  - metric: expectancy
+    direction: maximize
+    weight: 0.45
+  - metric: sharpe_ratio
+    direction: maximize
+    weight: 0.30
+  # - metric: max_drawdown_pct
+  #   direction: minimize
+  #   weight: 0.05
+  # - metric: turnover_pct
+  #   direction: minimize
+  #   weight: 0.01
+
+search:
+  total_trials: 500
+  random_pct: 0.75
+  parallel_workers: 20
+  seed: 42
+  resume: true
+  # drawdown_cap_pct: 15.0
+  optuna:
+    enabled: true
+    sampler: tpe
+    n_startup_trials: 0
+    n_jobs: 1
+
+walk_forward:
+  mode: rolling
+  train_days: 252
+  test_days: 21
+  step_days: 42
+  purge_days: 20
+  embargo_days: 1
+  max_walks: null
+  train_min_days: null
+  train_max_days: null
+  resume_train: false
+  fallback_short_window:
+    enabled: true
+    min_required_days: null
+    train_days: 30
+    test_days: 10
+    step_days: 10
+  constraints:
+    min_trades: null
+    drawdown_cap_pct: 15.0
+    max_turnover_pct: null
+  selection:
+    candidate_pool_size: 50
+    ensemble_size: 5
+    min_param_distance: 0.1
+    corr_threshold: 0.8
+    corr_threshold_step: 0.05
+    corr_threshold_max: 0.9
+    weighting: equal
+    max_weight_mult: 2.0
+  warm_start:
+    enabled: true
+    seed_top_k: 20
+    perturbations_per_seed: 2
+    exploration_pct: 0.75
+    global_bank_max: 100
+  search_overrides:
+    random_pct: 0.75
+    quick_eval:
+      enabled: true
+      train_fraction: 0.3
+      keep_pct: 0.3
+    optuna:
+      n_startup_trials: 0
+      pruner:
+        type: median
+        n_startup_trials: 10
+        n_warmup_steps: 0
+        interval_steps: 1
+
+output:
+  save_runs: false
+  top_n: 20
