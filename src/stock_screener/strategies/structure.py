@@ -116,14 +116,53 @@ class PatternSeriesMixin:
         return (id(df), len(df))
 
     def _build_context(self, df: pd.DataFrame) -> Dict[str, Any]:
-        return {"df": df}
+        high = df["High"].values
+        low = df["Low"].values
+        close = df["Close"].values
+        volume = df["Volume"].values
+        avg_vol = pd.Series(volume).rolling(self.volume_lookback).mean().shift(1).values
+        return {
+            "df": df,
+            "high": high,
+            "low": low,
+            "close": close,
+            "volume": volume,
+            "avg_vol": avg_vol,
+            "vol_ratio": _safe_divide(volume, avg_vol),
+            "atr": self.atr_series(df).values,
+        }
 
     def _candidate_mask(self, df: pd.DataFrame, context: Dict[str, Any]) -> pd.Series:
         return pd.Series(True, index=df.index)
 
     def _scan_index(self, context: Dict[str, Any], idx: int) -> Tuple[bool, Dict[str, Any]]:
-        df = context["df"]
-        return self._scan_pattern(df.iloc[: idx + 1])
+        raise NotImplementedError
+
+    def _scan_current(self, df: pd.DataFrame) -> Tuple[bool, Dict[str, Any]]:
+        if df.empty:
+            return False, {}
+        return self._scan_index(self._build_context(df), len(df) - 1)
+
+    def _scan_pattern(self, df: pd.DataFrame) -> Tuple[bool, Dict[str, Any]]:
+        return self._scan_current(df)
+
+    def _scan_recent(
+        self,
+        df: pd.DataFrame,
+        lookback: int,
+        full_break_window: bool = False,
+    ) -> Tuple[bool, Dict[str, Any]]:
+        if len(df) < lookback:
+            return False, {}
+        window = df.iloc[-lookback:]
+        context = self._build_context(window)
+        if "atr" in context:
+            context["atr"] = context["atr"].copy()
+            atr = self.atr_series(df).iloc[-1]
+            context["atr"][-1] = atr if pd.notna(atr) else np.nan
+        if full_break_window:
+            context["full_break_window"] = True
+        return self._scan_index(context, len(window) - 1)
 
     def _compute_series(self, df: pd.DataFrame) -> Dict[str, pd.Series]:
         cache_key = self._series_cache_key_for(df)
@@ -172,8 +211,26 @@ class PatternSeriesMixin:
         }
         return self._series_cache
 
+    def check(self, df: pd.DataFrame) -> Tuple[bool, Dict[str, Any]]:
+        return self._scan_pattern(df)
 
-class HeadAndShouldersReversal(BaseStrategy, PatternSeriesMixin):
+    def signal(self, df: pd.DataFrame) -> pd.Series:
+        return self._compute_series(df)["signals"]
+
+    def score_series(self, df: pd.DataFrame) -> pd.Series:
+        return self._compute_series(df)["scores"]
+
+    def stop_loss_series(self, df: pd.DataFrame) -> Optional[pd.Series]:
+        return self._compute_series(df)["stops"]
+
+    def get_take_profit(self, df: pd.DataFrame, entry_price: Optional[float] = None) -> Optional[float]:
+        ok, metrics = self._scan_pattern(df)
+        if ok and metrics.get("take_profit") is not None:
+            return metrics["take_profit"]
+        return super().get_take_profit(df, entry_price=entry_price)
+
+
+class HeadAndShouldersReversal(PatternSeriesMixin, BaseStrategy):
     """
     Head & Shoulders Reversal:
     - Neckline break with volume confirmation
@@ -273,7 +330,9 @@ class HeadAndShouldersReversal(BaseStrategy, PatternSeriesMixin):
 
         break_idx = None
         vol_ratio = None
-        start_break = max(p3 + 1, idx - self.retest_window)
+        start_break = p3 + 1
+        if not context.get("full_break_window"):
+            start_break = max(start_break, idx - self.retest_window)
         if start_break >= idx:
             return False, {}
         for i in range(start_break, idx):
@@ -286,6 +345,8 @@ class HeadAndShouldersReversal(BaseStrategy, PatternSeriesMixin):
                         break_idx = i
                         break
         if break_idx is None:
+            return False, {}
+        if idx - break_idx > self.retest_window:
             return False, {}
 
         neck_now = neckline_at(idx)
@@ -315,110 +376,10 @@ class HeadAndShouldersReversal(BaseStrategy, PatternSeriesMixin):
         }
 
     def _scan_pattern(self, df: pd.DataFrame) -> Tuple[bool, Dict[str, Any]]:
-        if len(df) < self.lookback:
-            return False, {}
-        hist = df.iloc[-self.lookback:]
-        high = hist["High"].values
-        low = hist["Low"].values
-        close = hist["Close"].values
-        volume = hist["Volume"].values
-
-        pivots_high = _pivot_indices(high, self.pivot_left, self.pivot_right, mode="high")
-        if len(pivots_high) < 3:
-            return False, {}
-
-        p1, p2, p3 = pivots_high[-3:]
-        if not (p1 < p2 < p3):
-            return False, {}
-
-        left_shoulder = high[p1]
-        head = high[p2]
-        right_shoulder = high[p3]
-        if head <= left_shoulder * (1 + self.head_to_shoulder_min_pct):
-            return False, {}
-        if head <= right_shoulder * (1 + self.head_to_shoulder_min_pct):
-            return False, {}
-        if abs(left_shoulder - right_shoulder) / head > self.shoulder_tolerance_pct:
-            return False, {}
-
-        t1 = p1 + int(np.argmin(low[p1 : p2 + 1]))
-        t2 = p2 + int(np.argmin(low[p2 : p3 + 1]))
-        if not (p1 < t1 < p2 and p2 < t2 < p3):
-            return False, {}
-
-        neck1 = low[t1]
-        neck2 = low[t2]
-
-        def neckline_at(idx: int) -> float:
-            return _line_value(idx, t1, neck1, t2, neck2)
-
-        avg_vol = pd.Series(volume).rolling(self.volume_lookback).mean().shift(1).values
-        break_idx = None
-        vol_ratio = None
-        for i in range(p3 + 1, len(hist)):
-            neck = neckline_at(i)
-            if close[i] < neck * (1 - self.break_buffer_pct):
-                avg = avg_vol[i]
-                if avg and not np.isnan(avg):
-                    vol_ratio = volume[i] / avg if avg else None
-                if vol_ratio is not None and vol_ratio >= self.volume_break_ratio:
-                    break_idx = i
-                    break
-        if break_idx is None:
-            return False, {}
-
-        current_idx = len(hist) - 1
-        if current_idx <= break_idx:
-            return False, {}
-        if current_idx - break_idx > self.retest_window:
-            return False, {}
-
-        neck_now = neckline_at(current_idx)
-        if high[current_idx] < neck_now * (1 - self.retest_tolerance_pct):
-            return False, {}
-        if close[current_idx] > neck_now:
-            return False, {}
-
-        atr = self.atr_series(df).iloc[-1]
-        buffer = atr * self.shoulder_buffer_atr if pd.notna(atr) else 0.0
-        stop_loss = right_shoulder + buffer
-
-        neck_at_head = neckline_at(p2)
-        head_height = head - neck_at_head
-        target = neck_now - head_height
-        score = (head_height / head) * 100 if head else 0.0
-
-        return True, {
-            "pattern": "Head & Shoulders",
-            "neckline": round(neck_now, 2),
-            "head_height": round(head_height, 2),
-            "volume_ratio": round(vol_ratio or 0.0, 2),
-            "stop_loss": round(stop_loss, 2),
-            "take_profit": round(target, 2),
-            "score": round(score, 2),
-            "sentiment": "BEARISH",
-        }
-
-    def check(self, df: pd.DataFrame) -> Tuple[bool, Dict[str, Any]]:
-        return self._scan_pattern(df)
-
-    def signal(self, df: pd.DataFrame) -> pd.Series:
-        return self._compute_series(df)["signals"]
-
-    def score_series(self, df: pd.DataFrame) -> pd.Series:
-        return self._compute_series(df)["scores"]
-
-    def stop_loss_series(self, df: pd.DataFrame) -> Optional[pd.Series]:
-        return self._compute_series(df)["stops"]
-
-    def get_take_profit(self, df: pd.DataFrame, entry_price: Optional[float] = None) -> Optional[float]:
-        ok, metrics = self._scan_pattern(df)
-        if ok and metrics.get("take_profit") is not None:
-            return metrics["take_profit"]
-        return super().get_take_profit(df, entry_price=entry_price)
+        return self._scan_recent(df, self.lookback, full_break_window=True)
 
 
-class DoubleTopRsiDivergence(BaseStrategy, PatternSeriesMixin):
+class DoubleTopRsiDivergence(PatternSeriesMixin, BaseStrategy):
     """
     Double Top with RSI divergence (bearish).
     """
@@ -439,32 +400,13 @@ class DoubleTopRsiDivergence(BaseStrategy, PatternSeriesMixin):
     peak_buffer_atr = 0.1
 
     def _build_context(self, df: pd.DataFrame) -> Dict[str, Any]:
-        high = df["High"].values
-        low = df["Low"].values
-        close = df["Close"].values
-        volume = df["Volume"].values
-        avg_vol = pd.Series(volume).rolling(self.volume_lookback).mean().shift(1).values
-        vol_ratio = _safe_divide(volume, avg_vol)
+        context = super()._build_context(df)
         rsi = self.rsi_series(df, length=self.rsi_length)
-        if rsi is None:
-            rsi_values = np.full(len(df), np.nan)
-        else:
-            rsi_values = rsi.values
-        atr = self.atr_series(df).values
-        pivots, pivot_cum = _pivot_context(high, self.pivot_left, self.pivot_right, "high")
-        return {
-            "df": df,
-            "high": high,
-            "low": low,
-            "close": close,
-            "volume": volume,
-            "avg_vol": avg_vol,
-            "vol_ratio": vol_ratio,
-            "rsi": rsi_values,
-            "atr": atr,
-            "pivots": pivots,
-            "pivot_cum": pivot_cum,
-        }
+        context["rsi"] = np.full(len(df), np.nan) if rsi is None else rsi.values
+        context["pivots"], context["pivot_cum"] = _pivot_context(
+            context["high"], self.pivot_left, self.pivot_right, "high"
+        )
+        return context
 
     def _candidate_mask(self, df: pd.DataFrame, context: Dict[str, Any]) -> pd.Series:
         n = len(df)
@@ -539,86 +481,10 @@ class DoubleTopRsiDivergence(BaseStrategy, PatternSeriesMixin):
         }
 
     def _scan_pattern(self, df: pd.DataFrame) -> Tuple[bool, Dict[str, Any]]:
-        if len(df) < self.lookback:
-            return False, {}
-        hist = df.iloc[-self.lookback:]
-        high = hist["High"].values
-        low = hist["Low"].values
-        close = hist["Close"].values
-        volume = hist["Volume"].values
-
-        pivots = _pivot_indices(high, self.pivot_left, self.pivot_right, mode="high")
-        if len(pivots) < 2:
-            return False, {}
-        p1, p2 = pivots[-2:]
-        if not (p1 < p2):
-            return False, {}
-
-        h1 = high[p1]
-        h2 = high[p2]
-        if abs(h1 - h2) / h1 > self.peak_tolerance_pct:
-            return False, {}
-
-        neckline = float(low[p1 : p2 + 1].min())
-        if close[-1] >= neckline * (1 - self.break_buffer_pct):
-            return False, {}
-
-        rsi = self.rsi_series(hist, length=self.rsi_length)
-        if rsi is None or rsi.isna().all():
-            return False, {}
-        rsi1 = rsi.iloc[p1]
-        rsi2 = rsi.iloc[p2]
-        if pd.isna(rsi1) or pd.isna(rsi2):
-            return False, {}
-        if rsi2 > (rsi1 - self.rsi_divergence_min):
-            return False, {}
-
-        avg_vol = hist["Volume"].rolling(self.volume_lookback).mean().shift(1).iloc[-1]
-        if pd.isna(avg_vol) or avg_vol == 0:
-            return False, {}
-        vol_ratio = volume[-1] / avg_vol
-        if vol_ratio < self.volume_break_ratio:
-            return False, {}
-
-        atr = self.atr_series(df).iloc[-1]
-        buffer = atr * self.peak_buffer_atr if pd.notna(atr) else 0.0
-        stop_loss = h2 + buffer
-
-        height = max(h1, h2) - neckline
-        target = neckline - height
-        score = (rsi1 - rsi2) + (height / h2 * 100 if h2 else 0.0)
-
-        return True, {
-            "pattern": "Double Top",
-            "neckline": round(neckline, 2),
-            "rsi_divergence": round(rsi1 - rsi2, 2),
-            "volume_ratio": round(vol_ratio, 2),
-            "stop_loss": round(stop_loss, 2),
-            "take_profit": round(target, 2),
-            "score": round(score, 2),
-            "sentiment": "BEARISH",
-        }
-
-    def check(self, df: pd.DataFrame) -> Tuple[bool, Dict[str, Any]]:
-        return self._scan_pattern(df)
-
-    def signal(self, df: pd.DataFrame) -> pd.Series:
-        return self._compute_series(df)["signals"]
-
-    def score_series(self, df: pd.DataFrame) -> pd.Series:
-        return self._compute_series(df)["scores"]
-
-    def stop_loss_series(self, df: pd.DataFrame) -> Optional[pd.Series]:
-        return self._compute_series(df)["stops"]
-
-    def get_take_profit(self, df: pd.DataFrame, entry_price: Optional[float] = None) -> Optional[float]:
-        ok, metrics = self._scan_pattern(df)
-        if ok and metrics.get("take_profit") is not None:
-            return metrics["take_profit"]
-        return super().get_take_profit(df, entry_price=entry_price)
+        return self._scan_recent(df, self.lookback)
 
 
-class DoubleBottomRsiDivergence(BaseStrategy, PatternSeriesMixin):
+class DoubleBottomRsiDivergence(PatternSeriesMixin, BaseStrategy):
     """
     Double Bottom with RSI divergence (bullish).
     """
@@ -675,32 +541,13 @@ class DoubleBottomRsiDivergence(BaseStrategy, PatternSeriesMixin):
     trough_buffer_atr = 0.1
 
     def _build_context(self, df: pd.DataFrame) -> Dict[str, Any]:
-        high = df["High"].values
-        low = df["Low"].values
-        close = df["Close"].values
-        volume = df["Volume"].values
-        avg_vol = pd.Series(volume).rolling(self.volume_lookback).mean().shift(1).values
-        vol_ratio = _safe_divide(volume, avg_vol)
+        context = super()._build_context(df)
         rsi = self.rsi_series(df, length=self.rsi_length)
-        if rsi is None:
-            rsi_values = np.full(len(df), np.nan)
-        else:
-            rsi_values = rsi.values
-        atr = self.atr_series(df).values
-        pivots, pivot_cum = _pivot_context(low, self.pivot_left, self.pivot_right, "low")
-        return {
-            "df": df,
-            "high": high,
-            "low": low,
-            "close": close,
-            "volume": volume,
-            "avg_vol": avg_vol,
-            "vol_ratio": vol_ratio,
-            "rsi": rsi_values,
-            "atr": atr,
-            "pivots": pivots,
-            "pivot_cum": pivot_cum,
-        }
+        context["rsi"] = np.full(len(df), np.nan) if rsi is None else rsi.values
+        context["pivots"], context["pivot_cum"] = _pivot_context(
+            context["low"], self.pivot_left, self.pivot_right, "low"
+        )
+        return context
 
     def _candidate_mask(self, df: pd.DataFrame, context: Dict[str, Any]) -> pd.Series:
         n = len(df)
@@ -775,83 +622,7 @@ class DoubleBottomRsiDivergence(BaseStrategy, PatternSeriesMixin):
         }
 
     def _scan_pattern(self, df: pd.DataFrame) -> Tuple[bool, Dict[str, Any]]:
-        if len(df) < self.lookback:
-            return False, {}
-        hist = df.iloc[-self.lookback:]
-        high = hist["High"].values
-        low = hist["Low"].values
-        close = hist["Close"].values
-        volume = hist["Volume"].values
-
-        pivots = _pivot_indices(low, self.pivot_left, self.pivot_right, mode="low")
-        if len(pivots) < 2:
-            return False, {}
-        p1, p2 = pivots[-2:]
-        if not (p1 < p2):
-            return False, {}
-
-        l1 = low[p1]
-        l2 = low[p2]
-        if abs(l1 - l2) / l1 > self.trough_tolerance_pct:
-            return False, {}
-
-        neckline = float(high[p1 : p2 + 1].max())
-        if close[-1] <= neckline * (1 + self.break_buffer_pct):
-            return False, {}
-
-        rsi = self.rsi_series(hist, length=self.rsi_length)
-        if rsi is None or rsi.isna().all():
-            return False, {}
-        rsi1 = rsi.iloc[p1]
-        rsi2 = rsi.iloc[p2]
-        if pd.isna(rsi1) or pd.isna(rsi2):
-            return False, {}
-        if rsi2 < (rsi1 + self.rsi_divergence_min):
-            return False, {}
-
-        avg_vol = hist["Volume"].rolling(self.volume_lookback).mean().shift(1).iloc[-1]
-        if pd.isna(avg_vol) or avg_vol == 0:
-            return False, {}
-        vol_ratio = volume[-1] / avg_vol
-        if vol_ratio < self.volume_break_ratio:
-            return False, {}
-
-        atr = self.atr_series(df).iloc[-1]
-        buffer = atr * self.trough_buffer_atr if pd.notna(atr) else 0.0
-        stop_loss = l2 - buffer
-
-        height = neckline - min(l1, l2)
-        target = neckline + height
-        score = (rsi2 - rsi1) + (height / neckline * 100 if neckline else 0.0)
-
-        return True, {
-            "pattern": "Double Bottom",
-            "neckline": round(neckline, 2),
-            "rsi_divergence": round(rsi2 - rsi1, 2),
-            "volume_ratio": round(vol_ratio, 2),
-            "stop_loss": round(stop_loss, 2),
-            "take_profit": round(target, 2),
-            "score": round(score, 2),
-            "sentiment": "BULLISH",
-        }
-
-    def check(self, df: pd.DataFrame) -> Tuple[bool, Dict[str, Any]]:
-        return self._scan_pattern(df)
-
-    def signal(self, df: pd.DataFrame) -> pd.Series:
-        return self._compute_series(df)["signals"]
-
-    def score_series(self, df: pd.DataFrame) -> pd.Series:
-        return self._compute_series(df)["scores"]
-
-    def stop_loss_series(self, df: pd.DataFrame) -> Optional[pd.Series]:
-        return self._compute_series(df)["stops"]
-
-    def get_take_profit(self, df: pd.DataFrame, entry_price: Optional[float] = None) -> Optional[float]:
-        ok, metrics = self._scan_pattern(df)
-        if ok and metrics.get("take_profit") is not None:
-            return metrics["take_profit"]
-        return super().get_take_profit(df, entry_price=entry_price)
+        return self._scan_recent(df, self.lookback)
 
     def exit_signal(self, df: pd.DataFrame) -> pd.Series:
         if self.rsi_exit_threshold is None:
@@ -865,7 +636,7 @@ class DoubleBottomRsiDivergence(BaseStrategy, PatternSeriesMixin):
         return signal.fillna(False).astype(bool)
 
 
-class TriangleBreakout(BaseStrategy, PatternSeriesMixin):
+class TriangleBreakout(PatternSeriesMixin, BaseStrategy):
     """
     Triangle breakout with volume contraction into apex and spike on break.
     """
@@ -882,25 +653,6 @@ class TriangleBreakout(BaseStrategy, PatternSeriesMixin):
     volume_decay_ratio = 0.8
     volume_break_ratio = 1.5
     stop_buffer_atr = 0.1
-
-    def _build_context(self, df: pd.DataFrame) -> Dict[str, Any]:
-        high = df["High"].values
-        low = df["Low"].values
-        close = df["Close"].values
-        volume = df["Volume"].values
-        avg_vol = pd.Series(volume).rolling(self.volume_lookback).mean().shift(1).values
-        vol_ratio = _safe_divide(volume, avg_vol)
-        atr = self.atr_series(df).values
-        return {
-            "df": df,
-            "high": high,
-            "low": low,
-            "close": close,
-            "volume": volume,
-            "avg_vol": avg_vol,
-            "vol_ratio": vol_ratio,
-            "atr": atr,
-        }
 
     def _candidate_mask(self, df: pd.DataFrame, context: Dict[str, Any]) -> pd.Series:
         n = len(df)
@@ -971,82 +723,10 @@ class TriangleBreakout(BaseStrategy, PatternSeriesMixin):
         }
 
     def _scan_pattern(self, df: pd.DataFrame) -> Tuple[bool, Dict[str, Any]]:
-        if len(df) < self.lookback:
-            return False, {}
-        hist = df.iloc[-self.lookback:]
-        if len(hist) < self.min_bars:
-            return False, {}
-        high = hist["High"].values
-        low = hist["Low"].values
-        close = hist["Close"].values
-        volume = hist["Volume"].values
-
-        slope_high, intercept_high = _linear_fit(high)
-        slope_low, intercept_low = _linear_fit(low)
-        if slope_high >= 0 or slope_low <= 0:
-            return False, {}
-
-        start_range = (intercept_high - intercept_low)
-        end_range = (slope_high * (len(hist) - 1) + intercept_high) - (slope_low * (len(hist) - 1) + intercept_low)
-        if start_range <= 0 or end_range / start_range > self.contraction_ratio:
-            return False, {}
-
-        half = len(hist) // 2
-        avg_vol_early = np.mean(volume[:half]) if half > 0 else 0.0
-        avg_vol_late = np.mean(volume[half:]) if half > 0 else 0.0
-        if avg_vol_early <= 0 or avg_vol_late > avg_vol_early * self.volume_decay_ratio:
-            return False, {}
-
-        upper_now = slope_high * (len(hist) - 1) + intercept_high
-        lower_now = slope_low * (len(hist) - 1) + intercept_low
-        if close[-1] <= upper_now * (1 + self.break_buffer_pct):
-            return False, {}
-
-        avg_vol = hist["Volume"].rolling(self.volume_lookback).mean().shift(1).iloc[-1]
-        if pd.isna(avg_vol) or avg_vol == 0:
-            return False, {}
-        vol_ratio = volume[-1] / avg_vol
-        if vol_ratio < self.volume_break_ratio:
-            return False, {}
-
-        atr = self.atr_series(df).iloc[-1]
-        buffer = atr * self.stop_buffer_atr if pd.notna(atr) else 0.0
-        stop_loss = lower_now - buffer
-
-        height = float(np.max(high) - np.min(low))
-        target = close[-1] + height
-        score = (height / close[-1] * 100 if close[-1] else 0.0) + (vol_ratio * 2.0)
-
-        return True, {
-            "pattern": "Triangle Breakout",
-            "height": round(height, 2),
-            "volume_ratio": round(vol_ratio, 2),
-            "stop_loss": round(stop_loss, 2),
-            "take_profit": round(target, 2),
-            "score": round(score, 2),
-            "sentiment": "BULLISH",
-        }
-
-    def check(self, df: pd.DataFrame) -> Tuple[bool, Dict[str, Any]]:
-        return self._scan_pattern(df)
-
-    def signal(self, df: pd.DataFrame) -> pd.Series:
-        return self._compute_series(df)["signals"]
-
-    def score_series(self, df: pd.DataFrame) -> pd.Series:
-        return self._compute_series(df)["scores"]
-
-    def stop_loss_series(self, df: pd.DataFrame) -> Optional[pd.Series]:
-        return self._compute_series(df)["stops"]
-
-    def get_take_profit(self, df: pd.DataFrame, entry_price: Optional[float] = None) -> Optional[float]:
-        ok, metrics = self._scan_pattern(df)
-        if ok and metrics.get("take_profit") is not None:
-            return metrics["take_profit"]
-        return super().get_take_profit(df, entry_price=entry_price)
+        return self._scan_recent(df, self.lookback)
 
 
-class FlagPennantContinuation(BaseStrategy, PatternSeriesMixin):
+class FlagPennantContinuation(PatternSeriesMixin, BaseStrategy):
     """
     Flag/Pennant continuation after a strong flagpole move.
     """
@@ -1065,25 +745,6 @@ class FlagPennantContinuation(BaseStrategy, PatternSeriesMixin):
     volume_break_ratio = 1.5
     volume_lookback = 20
     stop_buffer_atr = 0.1
-
-    def _build_context(self, df: pd.DataFrame) -> Dict[str, Any]:
-        high = df["High"].values
-        low = df["Low"].values
-        close = df["Close"].values
-        volume = df["Volume"].values
-        avg_vol = pd.Series(volume).rolling(self.volume_lookback).mean().shift(1).values
-        vol_ratio = _safe_divide(volume, avg_vol)
-        atr = self.atr_series(df).values
-        return {
-            "df": df,
-            "high": high,
-            "low": low,
-            "close": close,
-            "volume": volume,
-            "avg_vol": avg_vol,
-            "vol_ratio": vol_ratio,
-            "atr": atr,
-        }
 
     def _candidate_mask(self, df: pd.DataFrame, context: Dict[str, Any]) -> pd.Series:
         n = len(df)
@@ -1112,7 +773,8 @@ class FlagPennantContinuation(BaseStrategy, PatternSeriesMixin):
             return False, {}
 
         pole_start_close = close[pole_start]
-        pole_end_close = close[pole_end - 1]
+        pole_end_idx = pole_end if context.get("flagpole_includes_flag_start") else pole_end - 1
+        pole_end_close = close[pole_end_idx]
         if pole_start_close <= 0:
             return False, {}
         pole_return = (pole_end_close - pole_start_close) / pole_start_close
@@ -1158,79 +820,12 @@ class FlagPennantContinuation(BaseStrategy, PatternSeriesMixin):
         needed = self.flagpole_lookback + self.flag_lookback
         if len(df) < needed:
             return False, {}
-
-        pole_start = -needed
-        pole_end = -self.flag_lookback
-        pole_start_close = df["Close"].iloc[pole_start]
-        pole_end_close = df["Close"].iloc[pole_end]
-        if pole_start_close <= 0:
-            return False, {}
-        pole_return = (pole_end_close - pole_start_close) / pole_start_close
-        if pole_return < self.min_flagpole_return:
-            return False, {}
-
-        flag = df.iloc[-self.flag_lookback:]
-        flag_high = flag["High"].max()
-        flag_low = flag["Low"].min()
-
-        pole_height = pole_end_close - pole_start_close
-        retrace = (pole_end_close - flag_low) / pole_height if pole_height > 0 else 0.0
-        if retrace < self.retrace_min or retrace > self.retrace_max:
-            return False, {}
-
-        pole_vol = df["Volume"].iloc[pole_start:pole_end].mean()
-        flag_vol = flag["Volume"].mean()
-        if pole_vol <= 0 or flag_vol > pole_vol * self.volume_decay_ratio:
-            return False, {}
-
-        current_close = df["Close"].iloc[-1]
-        if current_close <= flag_high * (1 + self.break_buffer_pct):
-            return False, {}
-
-        avg_vol = df["Volume"].rolling(self.volume_lookback).mean().shift(1).iloc[-1]
-        if pd.isna(avg_vol) or avg_vol == 0:
-            return False, {}
-        vol_ratio = df["Volume"].iloc[-1] / avg_vol
-        if vol_ratio < self.volume_break_ratio:
-            return False, {}
-
-        atr = self.atr_series(df).iloc[-1]
-        buffer = atr * self.stop_buffer_atr if pd.notna(atr) else 0.0
-        stop_loss = flag_low - buffer
-        target = current_close + pole_height
-        score = (pole_return * 100) + (vol_ratio * 2.0)
-
-        return True, {
-            "pattern": "Flag/Pennant",
-            "pole_return_pct": round(pole_return * 100, 2),
-            "retrace_pct": round(retrace * 100, 2),
-            "volume_ratio": round(vol_ratio, 2),
-            "stop_loss": round(stop_loss, 2),
-            "take_profit": round(target, 2),
-            "score": round(score, 2),
-            "sentiment": "BULLISH",
-        }
-
-    def check(self, df: pd.DataFrame) -> Tuple[bool, Dict[str, Any]]:
-        return self._scan_pattern(df)
-
-    def signal(self, df: pd.DataFrame) -> pd.Series:
-        return self._compute_series(df)["signals"]
-
-    def score_series(self, df: pd.DataFrame) -> pd.Series:
-        return self._compute_series(df)["scores"]
-
-    def stop_loss_series(self, df: pd.DataFrame) -> Optional[pd.Series]:
-        return self._compute_series(df)["stops"]
-
-    def get_take_profit(self, df: pd.DataFrame, entry_price: Optional[float] = None) -> Optional[float]:
-        ok, metrics = self._scan_pattern(df)
-        if ok and metrics.get("take_profit") is not None:
-            return metrics["take_profit"]
-        return super().get_take_profit(df, entry_price=entry_price)
+        context = self._build_context(df)
+        context["flagpole_includes_flag_start"] = True
+        return self._scan_index(context, len(df) - 1)
 
 
-class SupportResistanceBreakRetest(BaseStrategy, PatternSeriesMixin):
+class SupportResistanceBreakRetest(PatternSeriesMixin, BaseStrategy):
     """
     Support/Resistance zone break with retest entry.
     """
@@ -1353,83 +948,10 @@ class SupportResistanceBreakRetest(BaseStrategy, PatternSeriesMixin):
         return higher[0]
 
     def _scan_pattern(self, df: pd.DataFrame) -> Tuple[bool, Dict[str, Any]]:
-        if len(df) < self.lookback:
-            return False, {}
-        hist = df.iloc[-self.lookback:]
-        high = hist["High"].values
-        low = hist["Low"].values
-        close = hist["Close"].values
-        volume = hist["Volume"].values
-
-        pivots = _pivot_indices(high, self.pivot_left, self.pivot_right, mode="high")
-        points = [(idx, float(high[idx])) for idx in pivots]
-        zones = _cluster_levels(points, self.zone_tolerance_pct)
-        current_close = close[-1]
-        zone = self._select_zone(zones, current_close)
-        if zone is None:
-            return False, {}
-
-        zone_low = zone["center"] * (1 - self.zone_tolerance_pct)
-        zone_high = zone["center"] * (1 + self.zone_tolerance_pct)
-
-        avg_vol = pd.Series(volume).rolling(self.volume_lookback).mean().shift(1).values
-        break_idx = None
-        vol_ratio = None
-        start_idx = max(0, len(hist) - self.retest_window - 1)
-        for i in range(start_idx, len(hist)):
-            if close[i] > zone_high * (1 + self.break_buffer_pct):
-                avg = avg_vol[i]
-                if avg and not np.isnan(avg):
-                    vol_ratio = volume[i] / avg if avg else None
-                if vol_ratio is not None and vol_ratio >= self.volume_break_ratio:
-                    break_idx = i
-                    break
-        if break_idx is None:
-            return False, {}
-
-        current_idx = len(hist) - 1
-        if current_idx <= break_idx:
-            return False, {}
-        if current_idx - break_idx > self.retest_window:
-            return False, {}
-        if low[current_idx] > zone_high or close[current_idx] < zone_high:
-            return False, {}
-
-        next_zone = self._next_zone(zones, zone["center"])
-        target = next_zone["center"] if next_zone else None
-        score = (zone["count"] * 2.0) + (vol_ratio or 0.0)
-
-        return True, {
-            "pattern": "S/R Break Retest",
-            "zone": round(zone["center"], 2),
-            "touches": zone["count"],
-            "volume_ratio": round(vol_ratio or 0.0, 2),
-            "stop_loss": round(zone_low, 2),
-            "take_profit": round(float(target), 2) if target else None,
-            "score": round(score, 2),
-            "sentiment": "BULLISH",
-        }
-
-    def check(self, df: pd.DataFrame) -> Tuple[bool, Dict[str, Any]]:
-        return self._scan_pattern(df)
-
-    def signal(self, df: pd.DataFrame) -> pd.Series:
-        return self._compute_series(df)["signals"]
-
-    def score_series(self, df: pd.DataFrame) -> pd.Series:
-        return self._compute_series(df)["scores"]
-
-    def stop_loss_series(self, df: pd.DataFrame) -> Optional[pd.Series]:
-        return self._compute_series(df)["stops"]
-
-    def get_take_profit(self, df: pd.DataFrame, entry_price: Optional[float] = None) -> Optional[float]:
-        ok, metrics = self._scan_pattern(df)
-        if ok and metrics.get("take_profit") is not None:
-            return metrics["take_profit"]
-        return super().get_take_profit(df, entry_price=entry_price)
+        return self._scan_recent(df, self.lookback)
 
 
-class LongTermSupportResistanceBreakRetest(BaseStrategy, PatternSeriesMixin):
+class LongTermSupportResistanceBreakRetest(PatternSeriesMixin, BaseStrategy):
     """
     Weekly S/R level construction with daily break/retest execution.
     """
@@ -1697,32 +1219,8 @@ class LongTermSupportResistanceBreakRetest(BaseStrategy, PatternSeriesMixin):
         higher.sort(key=lambda z: z["center"])
         return higher[0]
 
-    def _scan_pattern(self, df: pd.DataFrame) -> Tuple[bool, Dict[str, Any]]:
-        if df.empty:
-            return False, {}
-        context = self._build_context(df)
-        return self._scan_index(context, len(df) - 1)
 
-    def check(self, df: pd.DataFrame) -> Tuple[bool, Dict[str, Any]]:
-        return self._scan_pattern(df)
-
-    def signal(self, df: pd.DataFrame) -> pd.Series:
-        return self._compute_series(df)["signals"]
-
-    def score_series(self, df: pd.DataFrame) -> pd.Series:
-        return self._compute_series(df)["scores"]
-
-    def stop_loss_series(self, df: pd.DataFrame) -> Optional[pd.Series]:
-        return self._compute_series(df)["stops"]
-
-    def get_take_profit(self, df: pd.DataFrame, entry_price: Optional[float] = None) -> Optional[float]:
-        ok, metrics = self._scan_pattern(df)
-        if ok and metrics.get("take_profit") is not None:
-            return metrics["take_profit"]
-        return super().get_take_profit(df, entry_price=entry_price)
-
-
-class MarketAlignedStructureBreak(BaseStrategy, PatternSeriesMixin):
+class MarketAlignedStructureBreak(PatternSeriesMixin, BaseStrategy):
     """
     Market-aligned daily structure break with retest + candle confirmation.
     """
@@ -2235,27 +1733,3 @@ class MarketAlignedStructureBreak(BaseStrategy, PatternSeriesMixin):
             and open_px[idx] <= close[idx - 1]
         )
         return bool(hammer or bullish_engulf)
-
-    def _scan_pattern(self, df: pd.DataFrame) -> Tuple[bool, Dict[str, Any]]:
-        if df.empty:
-            return False, {}
-        context = self._build_context(df)
-        return self._scan_index(context, len(df) - 1)
-
-    def check(self, df: pd.DataFrame) -> Tuple[bool, Dict[str, Any]]:
-        return self._scan_pattern(df)
-
-    def signal(self, df: pd.DataFrame) -> pd.Series:
-        return self._compute_series(df)["signals"]
-
-    def score_series(self, df: pd.DataFrame) -> pd.Series:
-        return self._compute_series(df)["scores"]
-
-    def stop_loss_series(self, df: pd.DataFrame) -> Optional[pd.Series]:
-        return self._compute_series(df)["stops"]
-
-    def get_take_profit(self, df: pd.DataFrame, entry_price: Optional[float] = None) -> Optional[float]:
-        ok, metrics = self._scan_pattern(df)
-        if ok and metrics.get("take_profit") is not None:
-            return metrics["take_profit"]
-        return super().get_take_profit(df, entry_price=entry_price)

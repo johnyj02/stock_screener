@@ -1012,6 +1012,215 @@ class BacktestEngine:
 
         return signal_cache, stop_cache, exit_cache, score_cache
 
+    def _process_open_positions(
+        self,
+        date: pd.Timestamp,
+        data_source: Dict[str, pd.DataFrame],
+        regime_state: RegimeState,
+        strategies_by_name: Dict[str, Any],
+        stop_cache: Optional[Dict[str, Dict[str, Optional[pd.Series]]]] = None,
+        exit_cache: Optional[Dict[str, Dict[str, Optional[pd.Series]]]] = None,
+    ) -> None:
+        """Apply the shared exit pipeline to every non-hedge position."""
+        for position_key in list(self.holdings):
+            holding = self.holdings[position_key]
+            ticker, strategy_name = position_key
+            if holding.get("asset_type") == "hedge" or ticker not in data_source:
+                continue
+
+            df = data_source[ticker]
+            try:
+                row = df.loc[date]
+                price = row["Close"]
+            except Exception:
+                continue
+
+            self._update_excursions(holding, row, date)
+            entry_price = holding["entry_price"]
+            stop_loss = holding.get("stop_loss")
+            take_profit = holding.get("take_profit")
+            side = holding.get("side", 1)
+            strategy = strategies_by_name.get(strategy_name) if strategy_name else None
+            use_stop_loss = bool(getattr(strategy, "use_stop_loss", True)) if strategy is not None else True
+
+            use_regime_exit = self.exit_on_risk_off and (
+                bool(getattr(strategy, "use_regime_exit", True)) if strategy is not None else True
+            )
+            if side == 1 and use_regime_exit and not regime_state.risk_on:
+                self._execute_sell(position_key, date, price, "Regime Risk-Off", data_source)
+                continue
+
+            if strategy is not None and use_stop_loss:
+                if stop_cache is None:
+                    try:
+                        stop_series = strategy.stop_loss_series(df)
+                    except Exception:
+                        stop_series = None
+                else:
+                    stop_series = stop_cache.get(ticker, {}).get(strategy_name)
+                if stop_series is not None and date in stop_series.index:
+                    stop_value = stop_series.loc[date]
+                    if not pd.isna(stop_value):
+                        new_stop = float(stop_value)
+                        tightens = stop_loss is None or (side == 1 and new_stop > stop_loss) or (
+                            side == -1 and new_stop < stop_loss
+                        )
+                        if tightens and self._atr_contraction_allows_tighten(holding, df, strategy, date):
+                            stop_loss = new_stop
+                            holding["stop_loss"] = new_stop
+                            holding["stop_type"] = "signal"
+
+            use_breakeven = bool(getattr(strategy, "use_breakeven", True)) if strategy is not None else True
+            if use_breakeven and use_stop_loss:
+                stop_loss = self._apply_breakeven_stop(
+                    holding,
+                    price,
+                    date,
+                    data_source,
+                    ticker,
+                    strategy,
+                )
+
+            self._update_trend_confirm(holding, row, df, strategy, date)
+            stop_loss = self._apply_trailing_stop(holding, row, strategy)
+
+            if stop_loss is not None and use_stop_loss:
+                stop_fill_price, stop_fill_mode = self._stop_fill_price(row, stop_loss, side)
+                if stop_fill_price is not None:
+                    holding["stop_level"] = stop_loss
+                    holding["stop_fill_price"] = stop_fill_price
+                    holding["stop_fill_mode"] = stop_fill_mode
+                    self._execute_sell(position_key, date, stop_fill_price, "Stop Loss", data_source)
+                    continue
+
+            if strategy is not None and bool(getattr(strategy, "use_exit_signal", True)):
+                if exit_cache is None:
+                    try:
+                        exit_series = strategy.exit_signal(df)
+                    except Exception:
+                        exit_series = None
+                else:
+                    exit_series = exit_cache.get(ticker, {}).get(strategy_name)
+                if exit_series is not None and date in exit_series.index and bool(exit_series.loc[date]):
+                    self._execute_sell(position_key, date, price, "Exit Signal", data_source)
+                    continue
+
+            exit_reason = None
+            if self._should_exhaustion_exit(holding, row, df, strategy, date):
+                exit_reason = "Exhaustion Exit"
+            elif self._should_giveback_exit(holding, price, date, strategy):
+                exit_reason = "Giveback Exit"
+            elif self._should_momentum_fail_exit(holding, df, strategy, date):
+                exit_reason = "Momentum Fail Exit"
+            elif self._should_early_failure_exit(holding, row, df, strategy, date):
+                exit_reason = "Early Failure Exit"
+            elif self._should_follow_through_exit(holding, row, df, strategy, date):
+                exit_reason = "No Follow-Through Exit"
+            elif self._should_decay_exit(holding, date, strategy):
+                exit_reason = "Decay Exit"
+            if exit_reason:
+                self._execute_sell(position_key, date, price, exit_reason, data_source)
+                continue
+
+            if holding.get("take_profit_levels"):
+                self._apply_staged_take_profit(ticker, holding, price, date, strategy, data_source)
+                if position_key not in self.holdings:
+                    continue
+            else:
+                self._apply_partial_take_profit(ticker, holding, price, date, strategy, data_source)
+                if position_key not in self.holdings:
+                    continue
+                use_take_profit = bool(getattr(strategy, "use_take_profit", True)) if strategy is not None else True
+                if (
+                    take_profit is not None
+                    and use_take_profit
+                    and ((side == 1 and price >= take_profit) or (side == -1 and price <= take_profit))
+                ):
+                    self._execute_sell(position_key, date, price, "Take Profit", data_source)
+                    continue
+
+            use_fallback_stop = bool(getattr(strategy, "use_fallback_stop", True)) if strategy is not None else True
+            if stop_loss is None and use_fallback_stop and use_stop_loss:
+                fallback_level = entry_price * (0.95 if side == 1 else 1.05)
+                stop_fill_price, stop_fill_mode = self._stop_fill_price(row, fallback_level, side)
+                if stop_fill_price is not None:
+                    holding["stop_type"] = "fallback"
+                    holding["stop_level"] = fallback_level
+                    holding["stop_fill_price"] = stop_fill_price
+                    holding["stop_fill_mode"] = stop_fill_mode
+                    holding["stop_loss"] = fallback_level
+                    self._execute_sell(position_key, date, stop_fill_price, "Stop Loss", data_source)
+                    continue
+
+            if self._time_stop_reached(position_key, date):
+                if self._execute_sell(position_key, date, price, "Time Stop", data_source):
+                    continue
+
+            if position_key in self.holdings:
+                self._maybe_add_on(
+                    holding,
+                    ticker,
+                    date,
+                    price,
+                    data_source,
+                    regime_state,
+                    strategy,
+                )
+
+    def _execute_candidates(
+        self,
+        date: pd.Timestamp,
+        candidates: List[Dict[str, Any]],
+        data_source: Dict[str, pd.DataFrame],
+        regime_state: RegimeState,
+    ) -> None:
+        candidates.sort(key=lambda candidate: candidate["score"], reverse=True)
+        slots = self.max_new_positions_per_day
+        for candidate in candidates:
+            book = self._strategy_book(candidate.get("strategy_obj"))
+            if slots <= 0:
+                self._record_rejection(date, book, "rejected_max_positions")
+                continue
+            amount_usd, reason = self._available_trade_amount(
+                date,
+                data_source,
+                candidate["ticker"],
+                candidate["price"],
+                candidate["stop_loss"],
+                regime_state,
+                candidate["side"],
+                candidate.get("strategy_obj"),
+                return_reason=True,
+            )
+            if amount_usd <= 0:
+                rejection = {
+                    "min_notional": "rejected_min_notional",
+                    "risk_budget": "rejected_risk_budget",
+                }.get(reason, "rejected_other")
+                self._record_rejection(date, book, rejection)
+                continue
+            executed = self._execute_buy(
+                candidate["ticker"],
+                date,
+                candidate["price"],
+                amount_usd,
+                candidate["stop_loss"],
+                candidate["strategy"],
+                candidate["side"],
+                "futures" if is_future_symbol(candidate["ticker"]) else "equity",
+                candidate["take_profit"],
+                candidate.get("entry_metrics"),
+                data_source,
+                take_profit_levels=candidate.get("take_profit_levels"),
+                take_profit_level_pcts=candidate.get("take_profit_level_pcts"),
+                take_profit_level_pct_mode=candidate.get("take_profit_level_pct_mode"),
+            )
+            if executed:
+                self._record_accept(date, book)
+                slots -= 1
+            else:
+                self._record_rejection(date, book, "rejected_other")
+
     def _run_vectorized(self, simulation_days, data_source, signal_cache, stop_cache, exit_cache, score_cache, regime_df):
         strategies = self.screener.strategies
         strategies_by_name = {s.get_name(): s for s in strategies}
@@ -1036,141 +1245,14 @@ class BacktestEngine:
                 if strat_signals:
                     self._record_today_signals(ticker, current_day, strat_signals, strategies_by_name)
 
-            # Exit logic with strategy-specific exits, trailing stops, and risk-off handling
-            for position_key in list(self.holdings.keys()):
-                holding = self.holdings[position_key]
-                ticker, strategy_name = position_key
-                if holding.get("asset_type") == "hedge":
-                    continue
-                if ticker not in data_source:
-                    continue
-                try:
-                    row = data_source[ticker].loc[current_day]
-                except Exception:
-                    continue
-
-                price = row['Close']
-                self._update_excursions(holding, row, current_day)
-                entry_price = holding['entry_price']
-                stop_loss = holding.get('stop_loss')
-                take_profit = holding.get('take_profit')
-                side = holding.get("side", 1)
-                strategy_obj = strategies_by_name.get(strategy_name) if strategy_name else None
-
-                use_regime_exit = self.exit_on_risk_off
-                if strategy_obj is not None:
-                    use_regime_exit = use_regime_exit and bool(getattr(strategy_obj, "use_regime_exit", True))
-                if side == 1 and use_regime_exit and not regime_state.risk_on:
-                    self._execute_sell(position_key, current_day, price, "Regime Risk-Off", data_source)
-                    continue
-
-                if strategy_obj is not None and bool(getattr(strategy_obj, "use_stop_loss", True)):
-                    stop_series = stop_cache.get(ticker, {}).get(strategy_name)
-                    if stop_series is not None and current_day in stop_series.index:
-                        stop_value = stop_series.loc[current_day]
-                        if not pd.isna(stop_value):
-                            new_stop = float(stop_value)
-                            should_update = stop_loss is None or (side == 1 and new_stop > stop_loss) or (side == -1 and new_stop < stop_loss)
-                            if should_update and self._atr_contraction_allows_tighten(holding, data_source[ticker], strategy_obj, current_day):
-                                stop_loss = new_stop
-                                holding['stop_loss'] = new_stop
-                                holding["stop_type"] = "signal"
-
-                use_breakeven = bool(getattr(strategy_obj, "use_breakeven", True)) if strategy_obj is not None else True
-                if use_breakeven and bool(getattr(strategy_obj, "use_stop_loss", True) if strategy_obj is not None else True):
-                    stop_loss = self._apply_breakeven_stop(holding, price, current_day, data_source, ticker, strategy_obj)
-
-                self._update_trend_confirm(holding, row, data_source[ticker], strategy_obj, current_day)
-                stop_loss = self._apply_trailing_stop(holding, row, strategy_obj)
-
-                if stop_loss is not None and bool(getattr(strategy_obj, "use_stop_loss", True) if strategy_obj is not None else True):
-                    stop_fill_price, stop_fill_mode = self._stop_fill_price(row, stop_loss, side)
-                    if stop_fill_price is not None:
-                        holding["stop_level"] = stop_loss
-                        holding["stop_fill_price"] = stop_fill_price
-                        holding["stop_fill_mode"] = stop_fill_mode
-                        self._execute_sell(position_key, current_day, stop_fill_price, "Stop Loss", data_source)
-                        continue
-
-                if strategy_obj is not None and bool(getattr(strategy_obj, "use_exit_signal", True)):
-                    exit_series = exit_cache.get(ticker, {}).get(strategy_name)
-                    if exit_series is not None and current_day in exit_series.index:
-                        if bool(exit_series.loc[current_day]):
-                            self._execute_sell(position_key, current_day, price, "Exit Signal", data_source)
-                            continue
-
-                if self._should_exhaustion_exit(holding, row, data_source[ticker], strategy_obj, current_day):
-                    self._execute_sell(position_key, current_day, price, "Exhaustion Exit", data_source)
-                    continue
-
-                if self._should_giveback_exit(holding, price, current_day, strategy_obj):
-                    self._execute_sell(position_key, current_day, price, "Giveback Exit", data_source)
-                    continue
-
-                if self._should_momentum_fail_exit(holding, data_source[ticker], strategy_obj, current_day):
-                    self._execute_sell(position_key, current_day, price, "Momentum Fail Exit", data_source)
-                    continue
-
-                if self._should_early_failure_exit(holding, row, data_source[ticker], strategy_obj, current_day):
-                    self._execute_sell(position_key, current_day, price, "Early Failure Exit", data_source)
-                    continue
-
-                if self._should_follow_through_exit(holding, row, data_source[ticker], strategy_obj, current_day):
-                    self._execute_sell(position_key, current_day, price, "No Follow-Through Exit", data_source)
-                    continue
-
-                if self._should_decay_exit(holding, current_day, strategy_obj):
-                    self._execute_sell(position_key, current_day, price, "Decay Exit", data_source)
-                    continue
-
-                has_staged_tp = bool(holding.get("take_profit_levels"))
-                if has_staged_tp:
-                    self._apply_staged_take_profit(ticker, holding, price, current_day, strategy_obj, data_source)
-                    if position_key not in self.holdings:
-                        continue
-                else:
-                    self._apply_partial_take_profit(ticker, holding, price, current_day, strategy_obj, data_source)
-                    if position_key not in self.holdings:
-                        continue
-
-                    use_take_profit = bool(getattr(strategy_obj, "use_take_profit", True)) if strategy_obj is not None else True
-                    if take_profit is not None and use_take_profit:
-                        if side == 1 and price >= take_profit:
-                            self._execute_sell(position_key, current_day, price, "Take Profit", data_source)
-                            continue
-                        if side == -1 and price <= take_profit:
-                            self._execute_sell(position_key, current_day, price, "Take Profit", data_source)
-                            continue
-
-                use_fallback_stop = bool(getattr(strategy_obj, "use_fallback_stop", True)) if strategy_obj is not None else True
-                use_stop_loss = bool(getattr(strategy_obj, "use_stop_loss", True)) if strategy_obj is not None else True
-                if stop_loss is None and use_fallback_stop and use_stop_loss:
-                    fallback_level = entry_price * (0.95 if side == 1 else 1.05)
-                    stop_fill_price, stop_fill_mode = self._stop_fill_price(row, fallback_level, side)
-                    if stop_fill_price is not None:
-                        holding["stop_type"] = "fallback"
-                        holding["stop_level"] = fallback_level
-                        holding["stop_fill_price"] = stop_fill_price
-                        holding["stop_fill_mode"] = stop_fill_mode
-                        holding["stop_loss"] = fallback_level
-                        self._execute_sell(position_key, current_day, stop_fill_price, "Stop Loss", data_source)
-                        continue
-
-                if self._time_stop_reached(position_key, current_day):
-                    if self._execute_sell(position_key, current_day, price, "Time Stop", data_source):
-                        continue
-
-                if position_key in self.holdings:
-                    self._maybe_add_on(
-                        holding,
-                        ticker,
-                        current_day,
-                        price,
-                        data_source,
-                        regime_state,
-                        strategy_obj,
-                    )
-
+            self._process_open_positions(
+                current_day,
+                data_source,
+                regime_state,
+                strategies_by_name,
+                stop_cache,
+                exit_cache,
+            )
             # Entry logic using precomputed signals with scoring
             candidates = []
             for ticker in scan_list:
@@ -1314,54 +1396,7 @@ class BacktestEngine:
                 if best_candidate:
                     candidates.append(best_candidate)
 
-            candidates.sort(key=lambda c: c["score"], reverse=True)
-            slots = self.max_new_positions_per_day
-            for candidate in candidates:
-                book = self._strategy_book(candidate.get("strategy_obj"))
-                if slots <= 0:
-                    self._record_rejection(current_day, book, "rejected_max_positions")
-                    continue
-                amount_usd, amt_reason = self._available_trade_amount(
-                    current_day,
-                    data_source,
-                    candidate["ticker"],
-                    candidate["price"],
-                    candidate["stop_loss"],
-                    regime_state,
-                    candidate["side"],
-                    candidate.get("strategy_obj"),
-                    return_reason=True,
-                )
-                if amount_usd <= 0:
-                    if amt_reason == "min_notional":
-                        self._record_rejection(current_day, book, "rejected_min_notional")
-                    elif amt_reason == "risk_budget":
-                        self._record_rejection(current_day, book, "rejected_risk_budget")
-                    else:
-                        self._record_rejection(current_day, book, "rejected_other")
-                    continue
-                executed = self._execute_buy(
-                    candidate["ticker"],
-                    current_day,
-                    candidate["price"],
-                    amount_usd,
-                    candidate["stop_loss"],
-                    candidate["strategy"],
-                    candidate["side"],
-                    "futures" if is_future_symbol(candidate["ticker"]) else "equity",
-                    candidate["take_profit"],
-                    candidate.get("entry_metrics"),
-                    data_source,
-                    take_profit_levels=candidate.get("take_profit_levels"),
-                    take_profit_level_pcts=candidate.get("take_profit_level_pcts"),
-                    take_profit_level_pct_mode=candidate.get("take_profit_level_pct_mode"),
-                )
-                if executed:
-                    self._record_accept(current_day, book)
-                    slots -= 1
-                else:
-                    self._record_rejection(current_day, book, "rejected_other")
-
+            self._execute_candidates(current_day, candidates, data_source, regime_state)
             self._update_hedge(current_day, data_source, regime_state)
             if last_day is not None and current_day == last_day:
                 self._liquidate_all_positions(current_day, data_source, reason="End of Backtest")
@@ -1377,158 +1412,13 @@ class BacktestEngine:
 
     def _process_signals(self, date, results, data_source, regime_state: RegimeState):
         """Evaluate screener results and execute trades."""
-        
-        # Placeholder Exit Logic: Sell if price drops 5% from entry (Stop Loss) or 10% gain.
-        # Real logic should come from Strategy but for MVP backtest structure:
-        
         for res in results:
             ticker = res["symbol"]
             matches = res.get("matches", [])
             if matches:
                 self._record_today_match_signals(ticker, date, matches)
 
-        for position_key in list(self.holdings.keys()):
-            holding = self.holdings[position_key]
-            ticker, strategy_name = position_key
-            if holding.get("asset_type") == "hedge":
-                continue
-            if ticker not in data_source:
-                continue
-
-            df = data_source[ticker]
-            try:
-                row = df.loc[date]
-                price = row['Close']
-            except Exception:
-                continue
-
-            self._update_excursions(holding, row, date)
-            entry_price = holding['entry_price']
-            stop_loss = holding.get('stop_loss')
-            take_profit = holding.get('take_profit')
-            side = holding.get("side", 1)
-            strategy = self.strategy_map.get(strategy_name) if strategy_name else None
-
-            use_regime_exit = self.exit_on_risk_off
-            if strategy is not None:
-                use_regime_exit = use_regime_exit and bool(getattr(strategy, "use_regime_exit", True))
-            if side == 1 and use_regime_exit and not regime_state.risk_on:
-                self._execute_sell(position_key, date, price, "Regime Risk-Off", data_source)
-                continue
-
-            if strategy and bool(getattr(strategy, "use_stop_loss", True)):
-                try:
-                    stop_series = strategy.stop_loss_series(df)
-                except Exception:
-                    stop_series = None
-                if stop_series is not None and date in stop_series.index:
-                    stop_value = stop_series.loc[date]
-                    if not pd.isna(stop_value):
-                        new_stop = float(stop_value)
-                        should_update = stop_loss is None or (side == 1 and new_stop > stop_loss) or (side == -1 and new_stop < stop_loss)
-                        if should_update and self._atr_contraction_allows_tighten(holding, df, strategy, date):
-                            stop_loss = new_stop
-                            holding['stop_loss'] = new_stop
-                            holding["stop_type"] = "signal"
-
-            use_breakeven = bool(getattr(strategy, "use_breakeven", True)) if strategy is not None else True
-            if use_breakeven and bool(getattr(strategy, "use_stop_loss", True) if strategy is not None else True):
-                stop_loss = self._apply_breakeven_stop(holding, price, date, data_source, ticker, strategy)
-
-            self._update_trend_confirm(holding, row, df, strategy, date)
-            stop_loss = self._apply_trailing_stop(holding, row, strategy)
-
-            if stop_loss is not None and bool(getattr(strategy, "use_stop_loss", True) if strategy is not None else True):
-                stop_fill_price, stop_fill_mode = self._stop_fill_price(row, stop_loss, side)
-                if stop_fill_price is not None:
-                    holding["stop_level"] = stop_loss
-                    holding["stop_fill_price"] = stop_fill_price
-                    holding["stop_fill_mode"] = stop_fill_mode
-                    self._execute_sell(position_key, date, stop_fill_price, "Stop Loss", data_source)
-                    continue
-
-            if strategy and bool(getattr(strategy, "use_exit_signal", True)):
-                try:
-                    exit_series = strategy.exit_signal(df)
-                except Exception:
-                    exit_series = None
-                if exit_series is not None and date in exit_series.index:
-                    if bool(exit_series.loc[date]):
-                        self._execute_sell(position_key, date, price, "Exit Signal", data_source)
-                        continue
-
-            if self._should_exhaustion_exit(holding, row, df, strategy, date):
-                self._execute_sell(position_key, date, price, "Exhaustion Exit", data_source)
-                continue
-
-            if self._should_giveback_exit(holding, price, date, strategy):
-                self._execute_sell(position_key, date, price, "Giveback Exit", data_source)
-                continue
-
-            if self._should_momentum_fail_exit(holding, df, strategy, date):
-                self._execute_sell(position_key, date, price, "Momentum Fail Exit", data_source)
-                continue
-
-            if self._should_early_failure_exit(holding, row, df, strategy, date):
-                self._execute_sell(position_key, date, price, "Early Failure Exit", data_source)
-                continue
-
-            if self._should_follow_through_exit(holding, row, df, strategy, date):
-                self._execute_sell(position_key, date, price, "No Follow-Through Exit", data_source)
-                continue
-
-            if self._should_decay_exit(holding, date, strategy):
-                self._execute_sell(position_key, date, price, "Decay Exit", data_source)
-                continue
-
-            has_staged_tp = bool(holding.get("take_profit_levels"))
-            if has_staged_tp:
-                self._apply_staged_take_profit(ticker, holding, price, date, strategy, data_source)
-                if position_key not in self.holdings:
-                    continue
-            else:
-                self._apply_partial_take_profit(ticker, holding, price, date, strategy, data_source)
-                if position_key not in self.holdings:
-                    continue
-
-                use_take_profit = bool(getattr(strategy, "use_take_profit", True)) if strategy is not None else True
-                if take_profit is not None and use_take_profit:
-                    if side == 1 and price >= take_profit:
-                        self._execute_sell(position_key, date, price, "Take Profit", data_source)
-                        continue
-                    if side == -1 and price <= take_profit:
-                        self._execute_sell(position_key, date, price, "Take Profit", data_source)
-                        continue
-
-            use_fallback_stop = bool(getattr(strategy, "use_fallback_stop", True)) if strategy is not None else True
-            use_stop_loss = bool(getattr(strategy, "use_stop_loss", True)) if strategy is not None else True
-            if stop_loss is None and use_fallback_stop and use_stop_loss:
-                fallback_level = entry_price * (0.95 if side == 1 else 1.05)
-                stop_fill_price, stop_fill_mode = self._stop_fill_price(row, fallback_level, side)
-                if stop_fill_price is not None:
-                    holding["stop_type"] = "fallback"
-                    holding["stop_level"] = fallback_level
-                    holding["stop_fill_price"] = stop_fill_price
-                    holding["stop_fill_mode"] = stop_fill_mode
-                    holding["stop_loss"] = fallback_level
-                    self._execute_sell(position_key, date, stop_fill_price, "Stop Loss", data_source)
-                    continue
-
-            if self._time_stop_reached(position_key, date):
-                if self._execute_sell(position_key, date, price, "Time Stop", data_source):
-                    continue
-
-            if position_key in self.holdings:
-                self._maybe_add_on(
-                    holding,
-                    ticker,
-                    date,
-                    price,
-                    data_source,
-                    regime_state,
-                    strategy,
-                )
-                
+        self._process_open_positions(date, data_source, regime_state, self.strategy_map)
         # Entry Logic with scoring and liquidity filters
         candidates = []
         for res in results:
@@ -1641,54 +1531,7 @@ class BacktestEngine:
             if best_candidate:
                 candidates.append(best_candidate)
 
-        candidates.sort(key=lambda c: c["score"], reverse=True)
-        slots = self.max_new_positions_per_day
-        for candidate in candidates:
-            book = self._strategy_book(candidate.get("strategy_obj"))
-            if slots <= 0:
-                self._record_rejection(date, book, "rejected_max_positions")
-                continue
-            amount_usd, amt_reason = self._available_trade_amount(
-                date,
-                data_source,
-                candidate["ticker"],
-                candidate["price"],
-                candidate["stop_loss"],
-                regime_state,
-                candidate["side"],
-                candidate.get("strategy_obj"),
-                return_reason=True,
-            )
-            if amount_usd <= 0:
-                if amt_reason == "min_notional":
-                    self._record_rejection(date, book, "rejected_min_notional")
-                elif amt_reason == "risk_budget":
-                    self._record_rejection(date, book, "rejected_risk_budget")
-                else:
-                    self._record_rejection(date, book, "rejected_other")
-                continue
-            executed = self._execute_buy(
-                candidate["ticker"],
-                date,
-                candidate["price"],
-                amount_usd,
-                candidate["stop_loss"],
-                candidate["strategy"],
-                candidate["side"],
-                "futures" if is_future_symbol(candidate["ticker"]) else "equity",
-                candidate["take_profit"],
-                candidate.get("entry_metrics"),
-                data_source,
-                take_profit_levels=candidate.get("take_profit_levels"),
-                take_profit_level_pcts=candidate.get("take_profit_level_pcts"),
-                take_profit_level_pct_mode=candidate.get("take_profit_level_pct_mode"),
-            )
-            if executed:
-                self._record_accept(date, book)
-                slots -= 1
-            else:
-                self._record_rejection(date, book, "rejected_other")
-
+        self._execute_candidates(date, candidates, data_source, regime_state)
     def _buy(
         self,
         ticker,
@@ -2335,28 +2178,39 @@ class BacktestEngine:
         by_ticker = group_trade_metrics(trades_df, 'symbol')
         return equity_df, trades_df, summary, by_strategy, by_ticker
 
-    def _current_market_value(self, date, data_source, asset_type: Optional[str] = None, side: Optional[int] = None):
+    def _current_market_value(
+        self,
+        date,
+        data_source,
+        asset_type: Optional[str] = None,
+        side: Optional[int] = None,
+        ticker: Optional[str] = None,
+        signed: bool = False,
+    ):
         market_val = 0.0
-        for (ticker, _), info in self.holdings.items():
+        for (symbol, _), info in self.holdings.items():
+            if ticker is not None and symbol != ticker:
+                continue
             if asset_type and info.get('asset_type') != asset_type:
                 continue
             if side is not None and info.get('side', 1) != side:
                 continue
-            if ticker in data_source:
+            if symbol in data_source:
                 try:
-                    price = data_source[ticker].loc[date]['Close']
+                    price = data_source[symbol].loc[date]['Close']
                     if price is None or pd.isna(price):
                         price = info.get('entry_price')
                     if price is None or pd.isna(price):
                         continue
-                    multiplier = info.get('multiplier', 1.0)
-                    market_val += float(price) * info['quantity'] * multiplier
+                    price = float(price)
                 except Exception:
                     price = info.get('entry_price')
                     if price is None or pd.isna(price):
                         continue
-                    multiplier = info.get('multiplier', 1.0)
-                    market_val += float(price) * info['quantity'] * multiplier
+                    price = float(price)
+                multiplier = info.get('multiplier', 1.0)
+                direction = info.get('side', 1) if signed else 1
+                market_val += direction * price * info['quantity'] * multiplier
         return market_val
 
     def _current_ticker_value(
@@ -2367,30 +2221,7 @@ class BacktestEngine:
         asset_type: Optional[str] = None,
         side: Optional[int] = None,
     ) -> float:
-        market_val = 0.0
-        for (sym, _), info in self.holdings.items():
-            if sym != ticker:
-                continue
-            if asset_type and info.get('asset_type') != asset_type:
-                continue
-            if side is not None and info.get('side', 1) != side:
-                continue
-            if sym in data_source:
-                try:
-                    price = data_source[sym].loc[date]['Close']
-                    if price is None or pd.isna(price):
-                        price = info.get('entry_price')
-                    if price is None or pd.isna(price):
-                        continue
-                    multiplier = info.get('multiplier', 1.0)
-                    market_val += float(price) * info['quantity'] * multiplier
-                except Exception:
-                    price = info.get('entry_price')
-                    if price is None or pd.isna(price):
-                        continue
-                    multiplier = info.get('multiplier', 1.0)
-                    market_val += float(price) * info['quantity'] * multiplier
-        return market_val
+        return self._current_market_value(date, data_source, asset_type, side, ticker)
 
     def _resolve_futures_margin_pct(self) -> Optional[float]:
         margin_pct = self.futures_margin_pct
@@ -3133,24 +2964,7 @@ class BacktestEngine:
         return (amount, None) if return_reason else amount
 
     def _current_equity(self, date, data_source):
-        market_val = 0.0
-        for (ticker, _), info in self.holdings.items():
-            if ticker in data_source:
-                try:
-                    price = data_source[ticker].loc[date]['Close']
-                    if price is None or pd.isna(price):
-                        price = info.get('entry_price')
-                    if price is None or pd.isna(price):
-                        continue
-                    multiplier = info.get('multiplier', 1.0)
-                    market_val += info.get('side', 1) * float(price) * info['quantity'] * multiplier
-                except Exception:
-                    price = info.get('entry_price')
-                    if price is None or pd.isna(price):
-                        continue
-                    multiplier = info.get('multiplier', 1.0)
-                    market_val += info.get('side', 1) * float(price) * info['quantity'] * multiplier
-        return self.cash + market_val
+        return self.cash + self._current_market_value(date, data_source, signed=True)
 
     def _update_hedge(self, date, data_source, regime_state: RegimeState):
         if self.hedge_symbol not in data_source:
@@ -4202,36 +4016,29 @@ class BacktestEngine:
         return float(self.commission_per_trade) + (notional * float(self.commission_pct))
 
     def _in_loss_cooldown(self, ticker: str, strategy: Optional[Any], date: pd.Timestamp) -> bool:
-        if strategy is None:
-            return False
-        cooldown = getattr(strategy, "loss_cooldown_days", None)
-        if cooldown is None or cooldown <= 0:
-            return False
-        if hasattr(strategy, "get_name"):
-            strategy_key = strategy.get_name()
-        else:
-            strategy_key = str(strategy)
-        key = (ticker, strategy_key)
-        last_loss = self.last_loss_exit_dates.get(key)
-        if last_loss is None:
-            return False
-        return (date - last_loss).days < cooldown
+        return self._in_strategy_cooldown(
+            self.last_loss_exit_dates, "loss_cooldown_days", ticker, strategy, date
+        )
 
     def _in_stop_cooldown(self, ticker: str, strategy: Optional[Any], date: pd.Timestamp) -> bool:
-        if strategy is None:
-            return False
-        cooldown = getattr(strategy, "stop_cooldown_days", None)
+        return self._in_strategy_cooldown(
+            self.last_stop_exit_dates, "stop_cooldown_days", ticker, strategy, date
+        )
+
+    @staticmethod
+    def _in_strategy_cooldown(
+        exit_dates: Dict[tuple, pd.Timestamp],
+        cooldown_attr: str,
+        ticker: str,
+        strategy: Optional[Any],
+        date: pd.Timestamp,
+    ) -> bool:
+        cooldown = getattr(strategy, cooldown_attr, None)
         if cooldown is None or cooldown <= 0:
             return False
-        if hasattr(strategy, "get_name"):
-            strategy_key = strategy.get_name()
-        else:
-            strategy_key = str(strategy)
-        key = (ticker, strategy_key)
-        last_stop = self.last_stop_exit_dates.get(key)
-        if last_stop is None:
-            return False
-        return (date - last_stop).days < cooldown
+        strategy_key = strategy.get_name() if hasattr(strategy, "get_name") else str(strategy)
+        last_exit = exit_dates.get((ticker, strategy_key))
+        return last_exit is not None and (date - last_exit).days < cooldown
 
     def _should_decay_exit(
         self,
