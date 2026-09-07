@@ -281,9 +281,9 @@ def generate_trade_charts(
 
         plot_df = df
         if start_date is not None:
-            plot_df = plot_df[plot_df.index >= start_date]
+            plot_df = plot_df[plot_df.index >= _align_timestamp(start_date, plot_df.index)]
         if end_date is not None:
-            plot_df = plot_df[plot_df.index <= end_date]
+            plot_df = plot_df[plot_df.index <= _align_timestamp(end_date, plot_df.index)]
         if plot_df.empty:
             logger.warning("Chart skipped for %s (no data in range).", ticker)
             continue

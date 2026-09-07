@@ -4,6 +4,8 @@ import numpy as np
 from strategy_backtester.core.engine import BacktestEngine
 from strategy_backtester.core.regime import RegimeState
 from stock_screener.core.strategy import BaseStrategy
+from strategy_backtester.core.reporting import build_equity_books_daily
+from strategy_backtester.charts import _align_timestamp
 
 
 def _df(rows: int = 30, start_price: float = 50.0) -> pd.DataFrame:
@@ -85,6 +87,46 @@ def test_available_trade_amount_respects_min_notional_and_risk():
     )
     assert amt2 == 0.0
     assert reason2 in {"min_notional", "risk_budget"}
+
+
+def test_futures_allocation_capacity_is_converted_from_margin_to_notional():
+    price_df = _df(start_price=50.0)
+    engine = BacktestEngine(
+        start_date="2020-01-01",
+        universe=["SI=F"],
+        strategies=[],
+        initial_capital=100_000.0,
+        trade_size=100_000.0,
+        max_alloc_pct=0.6,
+        risk_per_trade_pct=0.1,
+        futures_margin_pct=0.1,
+        hedge_symbol="",
+    )
+    amount, reason = engine._available_trade_amount(
+        date=price_df.index[5],
+        data_source={"SI=F": price_df},
+        ticker="SI=F",
+        entry_price=50.0,
+        stop_loss=49.0,
+        regime_state=RegimeState(True, "risk_on", 0.0, 5, 0.0, 0.05),
+        side=1,
+        return_reason=True,
+    )
+    assert amount >= 50.0 * 5_000.0
+    assert reason is None
+
+
+def test_unassigned_run_exports_dashboard_equity_contract():
+    equity = pd.DataFrame({"date": pd.date_range("2020-01-01", periods=2), "equity": [100.0, 105.0]})
+    exported = build_equity_books_daily([], equity)
+    assert {"date", "equity_total", "equity_dollars_core", "equity_dollars_convex"} <= set(exported.columns)
+    assert exported["equity_total"].tolist() == [100.0, 105.0]
+
+
+def test_chart_dates_align_to_timezone_aware_intraday_data():
+    index = pd.date_range("2026-07-10", periods=2, freq="5min", tz="UTC")
+    aligned = _align_timestamp(pd.Timestamp("2026-07-10"), index)
+    assert aligned == pd.Timestamp("2026-07-10", tz="UTC")
 
 
 def test_breakeven_stop_moves_stop_loss(monkeypatch):

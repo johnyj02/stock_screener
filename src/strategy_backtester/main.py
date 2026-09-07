@@ -11,6 +11,7 @@ from tabulate import tabulate
 from strategy_backtester.core.engine import BacktestEngine
 from strategy_backtester.core.reporting import (
     build_book_daily_attribution,
+    build_equity_books_daily,
     build_book_metrics,
     build_exit_reason_attribution,
     build_positions_df,
@@ -252,7 +253,7 @@ def main():
     trades_out.to_csv(trades_path, index=False)
     print(f"\nSaved trade log: {trades_path}")
 
-    book_daily_df = pd.DataFrame(engine.book_daily_records)
+    book_daily_df = build_equity_books_daily(engine.book_daily_records, equity)
     if not book_daily_df.empty:
         book_daily_path = os.path.join(run_dir, "equity_books_daily.csv")
         book_daily_df.to_csv(book_daily_path, index=False)

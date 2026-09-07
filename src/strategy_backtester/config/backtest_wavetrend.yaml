@@ -1,0 +1,33 @@
+# Pure WaveTrend long strategy: enter on WT buy and exit on WT sell.
+backtest:
+  start_date: "2020-01-01"
+  end_date: "2025-12-31"
+  interval: "1d"
+  tickers_file: "../../../data/sp500_top50.csv"
+  engine:
+    initial_capital: 100000.0
+    trade_size: 10000.0
+    max_alloc_pct: 0.6
+    risk_per_trade_pct: 0.005
+    allow_risk_off_entries: true
+    exit_on_risk_off: false
+    cooldown_days: 0
+    min_avg_dollar_vol: 0.0
+    commission_pct: 0.0002
+    slippage_bps: 2.0
+    use_vectorized: true
+
+strategies:
+  - class: WaveTrendCross
+    enabled: true
+    args:
+      direction: "long"
+      use_stop_loss: false
+      # Supplies a sizing-only fallback price; use_stop_loss remains false.
+      use_fallback_stop: true
+      use_take_profit: false
+      use_exit_signal: true
+      use_time_stop: false
+      use_regime_exit: false
+      use_breakeven: false
+      time_stop_days: null

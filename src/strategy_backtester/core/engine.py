@@ -2945,6 +2945,10 @@ class BacktestEngine:
             if trade_size > 0:
                 trade_size = trade_size / margin_pct
 
+        if futures_alloc_cap:
+            # Allocation capacity is tracked in margin dollars; orders use gross notional.
+            remaining = remaining / margin_pct
+            remaining_ticker = remaining_ticker / margin_pct
         if side == 1:
             amount = min(trade_size, cash_cap, remaining, remaining_ticker, notional)
         else:

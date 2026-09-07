@@ -60,6 +60,46 @@ def _session_vwap(price: pd.Series, volume: pd.Series, session_index: pd.Series)
     return cum_pv / cum_vol.where(cum_vol != 0)
 
 
+def _wavetrend_series(
+    df: pd.DataFrame,
+    channel_length: int = 10,
+    average_length: int = 21,
+    ma_length: int = 4,
+    source: str = "ohlc4",
+) -> Tuple[pd.Series, pd.Series, pd.Series, pd.Series]:
+    """Return WaveTrend lines and oversold/overbought crossover signals."""
+    sources = {
+        "open": df.get("Open"),
+        "high": df.get("High"),
+        "low": df.get("Low"),
+        "close": df.get("Close"),
+        "hl2": (df["High"] + df["Low"]) / 2 if _ensure_columns(df, ("High", "Low")) else None,
+        "hlc3": (df["High"] + df["Low"] + df["Close"]) / 3 if _ensure_columns(df, ("High", "Low", "Close")) else None,
+        "ohlc4": (df["Open"] + df["High"] + df["Low"] + df["Close"]) / 4
+        if _ensure_columns(df, ("Open", "High", "Low", "Close"))
+        else None,
+    }
+    price = sources.get(source, sources.get("close"))
+    if price is None:
+        empty = pd.Series(index=df.index, dtype="float64")
+        return empty, empty, empty, empty
+
+    ap = price.ewm(span=channel_length, adjust=False, min_periods=channel_length).mean()
+    deviation = (price - ap).abs()
+    d = deviation.ewm(span=channel_length, adjust=False, min_periods=channel_length).mean()
+    ci = (price - ap).where(d > 0).div(0.015 * d)
+    wt1 = ci.ewm(span=average_length, adjust=False, min_periods=average_length).mean()
+    wt2 = wt1.rolling(ma_length, min_periods=ma_length).mean()
+
+    crossed_up = (wt1 > wt2) & (wt1.shift(1) <= wt2.shift(1))
+    crossed_down = (wt1 < wt2) & (wt1.shift(1) >= wt2.shift(1))
+    buy = pd.Series(float("nan"), index=df.index)
+    sell = pd.Series(float("nan"), index=df.index)
+    buy.loc[crossed_up & (wt1 < -50)] = -70.0
+    sell.loc[crossed_down & (wt1 > 50)] = 70.0
+    return wt1, wt2, buy, sell
+
+
 def _nearest_levels(
     pivots: pd.Series,
     close: pd.Series,
@@ -110,6 +150,15 @@ def add_common_indicators(df: pd.DataFrame) -> pd.DataFrame:
     volume = df.get("Volume")
     if close is None or high is None or low is None:
         return df
+
+    # WaveTrend oscillator and its oversold/overbought crossover signals.
+    wt_cols = ("WT1_10_21_4", "WT2_10_21_4", "WT_BUY_10_21_4", "WT_SELL_10_21_4")
+    if not _ensure_columns(df, wt_cols):
+        wt1, wt2, wt_buy, wt_sell = _wavetrend_series(df)
+        df[wt_cols[0]] = wt1
+        df[wt_cols[1]] = wt2
+        df[wt_cols[2]] = wt_buy
+        df[wt_cols[3]] = wt_sell
 
     # RSI
     if "RSI_14" not in df.columns:

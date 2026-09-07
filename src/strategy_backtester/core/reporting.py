@@ -25,6 +25,30 @@ REJECTION_COLUMNS = [
 ]
 
 
+def build_equity_books_daily(book_daily_records: List[Dict[str, Any]], equity_df: pd.DataFrame) -> pd.DataFrame:
+    """Return the dashboard equity contract for both book and unassigned runs."""
+    records_df = pd.DataFrame(book_daily_records)
+    if not records_df.empty:
+        return records_df
+    if equity_df.empty:
+        return pd.DataFrame()
+    out = equity_df[["date", "equity"]].rename(columns={"equity": "equity_total"}).copy()
+    out["equity_dollars_core"] = out["equity_total"]
+    out["equity_dollars_convex"] = 0.0
+    out["allocator_state_core"] = "unassigned"
+    out["allocator_state_convex"] = "unassigned"
+    for column in (
+        "open_risk_dollars_core",
+        "open_risk_dollars_convex",
+        "gross_exposure_core",
+        "gross_exposure_convex",
+        "risk_budget_reference_core",
+        "risk_budget_reference_convex",
+    ):
+        out[column] = 0.0
+    return out
+
+
 def build_rejections_df(rejection_stats: Dict[pd.Timestamp, Dict[str, Dict[str, int]]]) -> pd.DataFrame:
     rows: List[Dict[str, Any]] = []
     for date, books in rejection_stats.items():

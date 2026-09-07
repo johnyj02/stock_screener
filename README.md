@@ -128,6 +128,7 @@ Sizing definitions (formulas)
 - `engine.max_alloc_pct`: portfolio‑level allocation cap (current equity).  
   `max_alloc = current_equity * max_alloc_pct`  
   Remaining capacity is reduced by equity long notional + futures margin used.
+  For futures, remaining margin capacity is converted back to gross notional before order sizing.
 - `strategy_max_position_pct`: per‑position cap.  
   Equities: `max_notional = current_equity * strategy_max_position_pct`  
   Futures: `max_notional = (current_equity * strategy_max_position_pct) / futures_margin_pct`
@@ -277,6 +278,12 @@ class MyStrategy(BaseStrategy):
 ```
 
 It will be automatically discovered next time you run!
+
+## Shared Indicators
+
+Common dataframe indicators are precomputed in `src/stock_screener/core/indicators.py`.
+WaveTrend uses `WT1_10_21_4` and `WT2_10_21_4`; crossover signals are exposed as
+`WT_BUY_10_21_4` (oversold) and `WT_SELL_10_21_4` (overbought).
 
 ## Included Strategies
 

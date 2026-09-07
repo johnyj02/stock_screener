@@ -55,6 +55,7 @@ engine.max_alloc_pct
 - Formula:
   - `max_alloc = current_equity * max_alloc_pct`
   - Remaining capacity is reduced by: equity long notional + futures margin used.
+  - For futures, remaining margin capacity is divided by `futures_margin_pct` before it caps gross order notional.
 - Importance: Limits total exposure across all open positions.
 - Usage: Set lower to reduce concentration and keep cash/margin reserves.
 

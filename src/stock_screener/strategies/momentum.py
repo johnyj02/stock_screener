@@ -100,6 +100,46 @@ class RsiOversold(BaseStrategy):
             
         return False, {}
 
+
+class WaveTrendCross(BaseStrategy):
+    """Long WaveTrend oversold crossover; exit on its overbought crossover."""
+
+    sentiment = "BULLISH"
+    direction = "long"
+    use_stop_loss = False
+    # Required for allocator risk sizing; use_stop_loss remains false, so it cannot exit a trade.
+    use_fallback_stop = True
+    use_take_profit = False
+    use_exit_signal = True
+    use_time_stop = False
+    use_regime_exit = False
+    use_breakeven = False
+
+    buy_column = "WT_BUY_10_21_4"
+    sell_column = "WT_SELL_10_21_4"
+
+    def signal(self, df: pd.DataFrame) -> pd.Series:
+        buy = df.get(self.buy_column)
+        if buy is None:
+            return pd.Series(False, index=df.index)
+        return buy.notna().astype(bool)
+
+    def exit_signal(self, df: pd.DataFrame) -> pd.Series:
+        sell = df.get(self.sell_column)
+        if sell is None:
+            return pd.Series(False, index=df.index)
+        return sell.notna().astype(bool)
+
+    def check(self, df: pd.DataFrame) -> Tuple[bool, Dict[str, Any]]:
+        if df.empty or not bool(self.signal(df).iloc[-1]):
+            return False, {}
+        return True, {
+            "pattern": "WaveTrend oversold crossover",
+            "wt1": float(df["WT1_10_21_4"].iloc[-1]),
+            "wt2": float(df["WT2_10_21_4"].iloc[-1]),
+            "sentiment": self.sentiment,
+        }
+
 class Sma200RsiOversoldFib(BaseStrategy):
     """
     Mean-reversion: close below SMA200 with RSI oversold, targeting fib retracements.

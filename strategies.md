@@ -47,6 +47,13 @@ require_sma200_trend (default: true): Require SMA200 trend filter (price above +
 ```
 - **Image (example)**: ![RsiOversold example](images/strategy_charts/rsi_oversold.png)
 
+### WaveTrendCross
+- **Purpose**: Long mean-reversion entries at an oversold WaveTrend crossover.
+- **Entry**: `WT1_10_21_4` crosses above `WT2_10_21_4` while WT1 is below -50 (`WT_BUY_10_21_4`).
+- **Exit**: `WT1_10_21_4` crosses below `WT2_10_21_4` while WT1 is above 50 (`WT_SELL_10_21_4`).
+- **Risk controls**: Stop and take-profit exits are disabled, so WaveTrend controls exits. A fallback price is retained only to size positions from risk; it cannot close a trade while `use_stop_loss` is false.
+- **Indicator settings**: OHLC4 source; channel 10, average 21, signal SMA 4.
+
 ### Sma200RsiOversoldFib
 - **Purpose**: Mean-reversion pullback strategy targeting fib retracements after deep oversold moves.
 - **Behavior And Rationale**: Large deviations below SMA200 and RSI extremes often rebound toward prior swing levels; fib levels structure partial exits.
