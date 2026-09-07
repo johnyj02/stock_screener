@@ -14,10 +14,14 @@ htmlcov/
 !.env.example
 .idea/
 .vscode/
+.claude/
+.codex/
+AGENTS.md
+CLAUDE.md
+graphify-out/
 *.log
 
 # Downloaded data, caches, and generated output
-.cache/
 .cache_ibkr/
 data/kaggle/
 results/
